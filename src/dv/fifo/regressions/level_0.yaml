@@ -1,0 +1,5 @@
+regression:
+  name: level_0
+  tests:
+    - sanity
+    - back_to_back

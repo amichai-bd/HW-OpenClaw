@@ -1,2 +1,2 @@
-+incdir+/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/src/dv/fifo/code/tb
-/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/src/dv/fifo/code/tb/fifo_tb.sv
++incdir+$MODEL_ROOT/src/dv/fifo/code/tb
+$MODEL_ROOT/src/dv/fifo/code/tb/fifo_tb.sv

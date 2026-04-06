@@ -1,0 +1,3 @@
+test:
+  name: sanity
+  description: single push and pop sanity

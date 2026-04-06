@@ -1,0 +1,34 @@
+workflows:
+  compile:
+    - compile
+  test:
+    - simulate
+  regress:
+    - regress
+
+steps:
+  prepare:
+    deps: []
+    commands:
+      - action: prepare_filelists
+  compile:
+    deps:
+      - prepare
+    commands:
+      - cmd: mkdir -p {compile_dir}
+      - cmd: cd {compile_dir} && verilator -Wall --binary --top-module {top_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
+        log: "{log_file}"
+  simulate:
+    deps:
+      - compile
+    commands:
+      - cmd: mkdir -p {run_dir}
+      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path}
+        log: "{log_file}"
+  regress:
+    deps:
+      - compile
+    commands:
+      - cmd: mkdir -p {run_dir}
+      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path}
+        log: "{log_file}"
