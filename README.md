@@ -24,6 +24,8 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 │   │       ├── filelist/
 │   │       └── regressions/
 │   └── rtl/
+│       ├── common/
+│       │   └── include/
 │       └── <ip>/
 │           ├── code/
 │           ├── lint/
@@ -41,6 +43,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
+- Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
 - Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
 - DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
 
