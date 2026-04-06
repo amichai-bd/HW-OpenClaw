@@ -21,3 +21,4 @@
 
 - Treat WhatsApp instructions as the source of task direction.
 - Keep repository changes small and task-focused.
+- In project text, avoid spelling out the term FIFO directly; represent it as `<IP>` instead.
