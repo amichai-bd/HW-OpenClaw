@@ -104,6 +104,9 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_synth_script",
             "synth_json",
             "synth_netlist",
+            "synth_stat_json",
+            "synth_area_report",
+            "synth_check_report",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -131,6 +134,8 @@ def get_ip_data(ip_name: str) -> dict:
             "rtl_filelist",
             "rtl_module",
             "synth_script",
+            "synth_liberty",
+            "synth_delay_target_ps",
             "dv_filelist",
             "all_filelist",
             "rtl_top",
@@ -153,6 +158,7 @@ def get_ip_data(ip_name: str) -> dict:
     ip_data["lint_source_dir"] = resolve_path(ip_data["lint_dir"])
     ip_data["lint_waiver"] = resolve_path(ip_data["lint_waiver"])
     ip_data["synth_script"] = resolve_path(ip_data["synth_script"])
+    ip_data["synth_liberty"] = resolve_path(ip_data["synth_liberty"])
     ip_data["test_name"] = ""
     ip_data["regress_name"] = ""
     return ip_data
@@ -230,6 +236,9 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     )
     ip_data["synth_json"] = resolve_path(apply_template(layout["synth_json"], ip_data))
     ip_data["synth_netlist"] = resolve_path(apply_template(layout["synth_netlist"], ip_data))
+    ip_data["synth_stat_json"] = resolve_path(apply_template(layout["synth_stat_json"], ip_data))
+    ip_data["synth_area_report"] = resolve_path(apply_template(layout["synth_area_report"], ip_data))
+    ip_data["synth_check_report"] = resolve_path(apply_template(layout["synth_check_report"], ip_data))
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
@@ -651,6 +660,8 @@ def main() -> int:
         elif args.synth:
             if not Path(context["synth_script"]).is_file():
                 raise BuildError(f"missing synth script: {context['synth_script']}")
+            if not Path(context["synth_liberty"]).is_file():
+                raise BuildError(f"missing synth liberty: {context['synth_liberty']}")
             context["run_dir"] = context["synth_out_dir"]
             context["log_file"] = context["synth_log"]
 
