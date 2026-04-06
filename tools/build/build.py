@@ -98,9 +98,11 @@ def get_ip_data(ip_name: str) -> dict:
             "test_out_dir",
             "test_log",
             "test_tracker",
+            "test_wave",
             "regression_test_out_dir",
             "regression_test_log",
             "regression_test_tracker",
+            "regression_test_wave",
         ],
         "output_layout",
     )
@@ -162,7 +164,7 @@ def get_env_data() -> dict:
         raise BuildError(f"'waveform' must be a mapping in {ENV_CONFIG}")
     require_keys(
         waveform,
-        ["enabled", "format", "test_wave", "regression_test_wave"],
+        ["enabled", "format"],
         "environment.simulation.waveform",
     )
 
@@ -177,8 +179,6 @@ def get_env_data() -> dict:
         "gtkwave_version": tools["gtkwave"]["version"],
         "waveform_enabled": bool(waveform["enabled"]),
         "waveform_format": waveform["format"],
-        "waveform_test_path": waveform["test_wave"],
-        "waveform_regression_path": waveform["regression_test_wave"],
     }
 
 
@@ -228,16 +228,14 @@ def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
         run_dir = resolve_path(apply_template(layout["test_out_dir"], ip_data))
         log_file = resolve_path(apply_template(layout["test_log"], ip_data))
         tracker_path = resolve_path(apply_template(layout["test_tracker"], ip_data))
-        wave_path = resolve_path(apply_template(ip_data["waveform_test_path"], ip_data))
+        wave_path = resolve_path(apply_template(layout["test_wave"], ip_data))
     else:
         run_dir = resolve_path(apply_template(layout["regression_test_out_dir"], ip_data))
         log_file = resolve_path(apply_template(layout["regression_test_log"], ip_data))
         tracker_path = resolve_path(
             apply_template(layout["regression_test_tracker"], ip_data)
         )
-        wave_path = resolve_path(
-            apply_template(ip_data["waveform_regression_path"], ip_data)
-        )
+        wave_path = resolve_path(apply_template(layout["regression_test_wave"], ip_data))
     ip_data["run_dir"] = run_dir
     ip_data["log_file"] = log_file
     ip_data["tracker_path"] = tracker_path
