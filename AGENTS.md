@@ -25,18 +25,26 @@
 - The repository tree uses the lowercase structure below:
 
 ```text
-src/
-├── dv/
-│   └── <IP>/
-│       ├── code/
-│       │   ├── tb/
-│       │   └── tests/
-│       ├── filelist/
-│       └── regressions/
-└── rtl/
-    └── <IP>/
-        ├── code/
-        └── filelist/
+.
+├── bin/
+├── cfg/
+├── src/
+│   ├── dv/
+│   │   └── <ip>/
+│   │       ├── code/
+│   │       │   ├── env/
+│   │       │   ├── if/
+│   │       │   ├── pkg/
+│   │       │   ├── tb/
+│   │       │   └── tests/
+│   │       ├── filelist/
+│   │       └── regressions/
+│   └── rtl/
+│       └── <ip>/
+│           ├── code/
+│           └── filelist_rtl_<ip>.f
+├── tools/
+└── workdir/
 ```
 
 ## Coding style and methodology
@@ -53,8 +61,10 @@ src/
 - If a tool needs build steps, it must read them from the tool YAML file.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
+- User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
+- Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 
 ## Standard DV layout
@@ -92,3 +102,10 @@ src/dv/<ip>/
 - `pkg` should gather reusable DV types, configuration helpers, and shared utility functions.
 - `env` should contain the predictable verification component split: generator, driver, monitor, model, scoreboard, coverage, agent, env, and tracker.
 - Test-specific selection should come from YAML and plusargs, not from ad hoc directory discovery or implicit defaults.
+
+## Repository expectations
+
+- `README.md` should describe the current repository layout and the standard developer entrypoints.
+- The standard shell entrypoint is `. cfg/env.sh`.
+- The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
+- Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
