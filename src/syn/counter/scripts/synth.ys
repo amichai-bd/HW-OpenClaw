@@ -1,5 +1,17 @@
 read_verilog -sv {yosys_read_verilog_args}
 hierarchy -check -top {rtl_module}
-synth -top {rtl_module}
+proc
+opt
+fsm
+opt
+memory
+opt
+techmap
+dfflibmap -liberty {synth_liberty}
+abc -g cmos2 -D {synth_delay_target_ps}
+clean
+tee -o {synth_check_report} check
+tee -o {synth_area_report} stat -tech cmos
+tee -o {synth_stat_json} stat -json
 write_json {synth_json}
 write_verilog -noattr {synth_netlist}

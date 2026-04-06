@@ -47,6 +47,9 @@
 │           ├── lint/
 │           └── filelist_rtl_<ip>.f
 │   └── syn/
+│       ├── common/
+│       │   ├── constraints/
+│       │   └── lib/
 │       └── <ip>/
 │           └── scripts/
 ├── tools/
@@ -70,11 +73,13 @@
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
+- Shared synthesis collateral such as generic libraries, default constraints, and reusable synthesis scripts should live under `src/syn/common/`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 - RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
+- The initial synthesis flow is a generic Yosys foundation flow, not a signoff flow. Synthesis warnings from generic mapping should be captured in report artifacts under `workdir/<tag>/<ip>/synth/`, not hidden.
 
 ## Standard DV layout
 
