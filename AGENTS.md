@@ -21,4 +21,20 @@
 
 - Treat WhatsApp instructions as the source of task direction.
 - Keep repository changes small and task-focused.
-- In project text, avoid spelling out the term FIFO directly; represent it as `<IP>` instead.
+- In project text, avoid spelling out the term FIFO directly; represent the IP name as `<IP>` instead.
+- The repository tree uses the lowercase structure below:
+
+```text
+src/
+├── dv/
+│   └── <IP>/
+│       ├── code/
+│       │   ├── tb/
+│       │   └── tests/
+│       ├── filelist/
+│       └── regressions/
+└── rtl/
+    └── <IP>/
+        ├── code/
+        └── filelist/
+```
