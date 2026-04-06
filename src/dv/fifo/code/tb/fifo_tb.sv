@@ -8,7 +8,9 @@ module fifo_tb;
     fifo_cfg_t cfg;
     fifo_txn_t expected_txn;
     string tracker_path;
+    string wave_path;
     string test_name;
+    int wave_enable;
     int idx;
 
     `include "fifo_tracker.svh"
@@ -161,11 +163,23 @@ module fifo_tb;
     initial begin
         test_name = "sanity";
         tracker_path = "";
+        wave_path = "";
+        wave_enable = 0;
         void'($value$plusargs("test=%s", test_name));
         if (!$value$plusargs("tracker_path=%s", tracker_path)) begin
             $fatal(1, "missing +tracker_path");
         end
+        void'($value$plusargs("wave_enable=%d", wave_enable));
+        void'($value$plusargs("wave_path=%s", wave_path));
         cfg = fifo_build_cfg(test_name);
+
+        if (wave_enable != 0) begin
+            if (wave_path == "") begin
+                $fatal(1, "missing +wave_path");
+            end
+            $dumpfile(wave_path);
+            $dumpvars(0, fifo_tb);
+        end
 
         tracker_open(tracker_path);
         apply_reset();
