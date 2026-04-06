@@ -2,15 +2,11 @@ module fifo_tb;
     localparam int WIDTH = 8;
     localparam int DEPTH = 4;
 
-    logic clk = 0;
-    logic rst_n = 0;
-    logic push = 0;
-    logic pop = 0;
-    logic [WIDTH-1:0] din = '0;
-    logic [WIDTH-1:0] dout;
-    logic full;
-    logic empty;
-    logic [WIDTH-1:0] test_vec [0:DEPTH-1];
+    import fifo_dv_pkg::*;
+
+    fifo_if #(.WIDTH(WIDTH)) vif ();
+    fifo_cfg_t cfg;
+    fifo_txn_t expected_txn;
     string tracker_path;
     string test_name;
     int idx;
@@ -18,37 +14,29 @@ module fifo_tb;
     `include "fifo_tracker.svh"
 
     fifo #(.WIDTH(WIDTH), .DEPTH(DEPTH)) dut (
-        .clk(clk),
-        .rst_n(rst_n),
-        .push(push),
-        .pop(pop),
-        .din(din),
-        .dout(dout),
-        .full(full),
-        .empty(empty)
+        .clk(vif.clk),
+        .rst_n(vif.rst_n),
+        .push(vif.push),
+        .pop(vif.pop),
+        .din(vif.din),
+        .dout(vif.dout),
+        .full(vif.full),
+        .empty(vif.empty)
     );
 
-    always #5 clk = ~clk;
-
-    task automatic seed_test_vec();
-    begin
-        test_vec[0] = 8'h11;
-        test_vec[1] = 8'h22;
-        test_vec[2] = 8'h33;
-        test_vec[3] = 8'h44;
-    end
-    endtask
+    initial vif.clk = 0;
+    always #5 vif.clk = ~vif.clk;
 
     task automatic apply_reset();
     begin
-        rst_n = 0;
-        push = 0;
-        pop = 0;
-        din = '0;
-        repeat (2) @(posedge clk);
+        vif.rst_n = 0;
+        vif.push = 0;
+        vif.pop = 0;
+        vif.din = '0;
+        repeat (2) @(posedge vif.clk);
         #1;
         tracker_seed_flags();
-        rst_n = 1;
+        vif.rst_n = 1;
         #1;
         tracker_sample_flags();
     end
@@ -56,38 +44,39 @@ module fifo_tb;
 
     task automatic drive_push(input logic [WIDTH-1:0] value);
     begin
-        din = value;
-        push = 1'b1;
-        @(posedge clk);
+        vif.din = value;
+        vif.push = 1'b1;
+        @(posedge vif.clk);
         #1;
         tracker_emit_data("push", value);
         tracker_sample_flags();
-        push = 1'b0;
+        vif.push = 1'b0;
     end
     endtask
 
     task automatic drive_pop(input logic [WIDTH-1:0] expected_value);
     begin
-        pop = 1'b1;
-        @(posedge clk);
+        vif.pop = 1'b1;
+        @(posedge vif.clk);
         #1;
-        tracker_emit_data("pop", dout);
+        tracker_emit_data("pop", vif.dout);
         tracker_sample_flags();
-        if (dout !== expected_value) begin
-            $error("FIFO mismatch: expected %0h got %0h", expected_value, dout);
+        if (vif.dout !== expected_value) begin
+            $error("FIFO mismatch: expected %0h got %0h", expected_value, vif.dout);
         end
-        pop = 1'b0;
+        vif.pop = 1'b0;
     end
     endtask
 
     task automatic run_sanity();
     begin
-        drive_push(test_vec[0]);
-        if (empty) begin
+        expected_txn = fifo_expected_txn(0);
+        drive_push(expected_txn.data);
+        if (vif.empty) begin
             $error("FIFO stayed empty after one push");
         end
-        drive_pop(test_vec[0]);
-        if (!empty) begin
+        drive_pop(expected_txn.data);
+        if (!vif.empty) begin
             $error("FIFO did not return to empty after sanity pop");
         end
     end
@@ -96,18 +85,20 @@ module fifo_tb;
     task automatic run_back_to_back();
     begin
         for (idx = 0; idx < DEPTH; idx++) begin
-            drive_push(test_vec[idx]);
+            expected_txn = fifo_expected_txn(idx);
+            drive_push(expected_txn.data);
         end
 
-        if (!full) begin
+        if (!vif.full) begin
             $error("FIFO did not assert full after %0d pushes", DEPTH);
         end
 
         for (idx = 0; idx < DEPTH; idx++) begin
-            drive_pop(test_vec[idx]);
+            expected_txn = fifo_expected_txn(idx);
+            drive_pop(expected_txn.data);
         end
 
-        if (!empty) begin
+        if (!vif.empty) begin
             $error("FIFO did not assert empty after %0d pops", DEPTH);
         end
     end
@@ -119,24 +110,26 @@ module fifo_tb;
         blocked_value = 8'hee;
 
         for (idx = 0; idx < DEPTH; idx++) begin
-            drive_push(test_vec[idx]);
+            expected_txn = fifo_expected_txn(idx);
+            drive_push(expected_txn.data);
         end
 
-        if (!full) begin
+        if (!vif.full) begin
             $error("FIFO did not assert full before blocked push");
         end
 
         drive_push(blocked_value);
 
-        if (!full) begin
+        if (!vif.full) begin
             $error("FIFO lost full during blocked push");
         end
 
         for (idx = 0; idx < DEPTH; idx++) begin
-            drive_pop(test_vec[idx]);
+            expected_txn = fifo_expected_txn(idx);
+            drive_pop(expected_txn.data);
         end
 
-        if (!empty) begin
+        if (!vif.empty) begin
             $error("FIFO did not empty after blocked push scenario");
         end
     end
@@ -144,49 +137,48 @@ module fifo_tb;
 
     task automatic run_empty_guard();
     begin
-        pop = 1'b1;
-        @(posedge clk);
+        vif.pop = 1'b1;
+        @(posedge vif.clk);
         #1;
-        tracker_emit_data("pop", dout);
+        tracker_emit_data("pop", vif.dout);
         tracker_sample_flags();
-        pop = 1'b0;
+        vif.pop = 1'b0;
 
-        if (!empty) begin
+        if (!vif.empty) begin
             $error("FIFO lost empty after pop on empty");
         end
 
-        drive_push(test_vec[1]);
-        drive_pop(test_vec[1]);
+        expected_txn = fifo_expected_txn(1);
+        drive_push(expected_txn.data);
+        drive_pop(expected_txn.data);
 
-        if (!empty) begin
+        if (!vif.empty) begin
             $error("FIFO did not return to empty in empty_guard");
         end
     end
     endtask
 
     initial begin
-        seed_test_vec();
         test_name = "sanity";
         tracker_path = "";
         void'($value$plusargs("test=%s", test_name));
         if (!$value$plusargs("tracker_path=%s", tracker_path)) begin
             $fatal(1, "missing +tracker_path");
         end
+        cfg = fifo_build_cfg(test_name);
 
         tracker_open(tracker_path);
         apply_reset();
 
-        case (test_name)
-            "sanity": run_sanity();
-            "back_to_back": run_back_to_back();
-            "back_pressure": run_back_pressure();
-            "empty_guard": run_empty_guard();
-            default: begin
-                $error("Unknown test '%s'", test_name);
-            end
+        case (cfg.kind)
+            FIFO_TEST_SANITY: run_sanity();
+            FIFO_TEST_BACK_TO_BACK: run_back_to_back();
+            FIFO_TEST_BACK_PRESSURE: run_back_pressure();
+            FIFO_TEST_EMPTY_GUARD: run_empty_guard();
+            default: $fatal(1, "Unsupported test kind");
         endcase
 
-        $display("test=%s dout=%0h full=%0b empty=%0b", test_name, dout, full, empty);
+        $display("test=%s dout=%0h full=%0b empty=%0b", test_name, vif.dout, vif.full, vif.empty);
         tracker_close();
         $finish;
     end
