@@ -1,6 +1,8 @@
 workflows:
   lint:
     - lint
+  synth:
+    - synth
   compile:
     - compile
   test:
@@ -19,6 +21,14 @@ steps:
     commands:
       - cmd: mkdir -p {lint_out_dir}
       - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
+        log: "{log_file}"
+  synth:
+    deps:
+      - prepare
+    commands:
+      - action: prepare_synth_script
+      - cmd: mkdir -p {synth_out_dir}
+      - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
         log: "{log_file}"
   compile:
     deps:

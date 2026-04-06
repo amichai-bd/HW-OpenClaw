@@ -30,6 +30,9 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 │           ├── code/
 │           ├── lint/
 │           └── filelist_rtl_<ip>.f
+│   └── syn/
+│       └── <ip>/
+│           └── scripts/
 ├── tools/
 │   └── build/
 │       ├── build.py
@@ -44,6 +47,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
 - Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
+- Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
 - Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
 - DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
 
@@ -60,6 +64,7 @@ Then invoke the builder through the standard repo launcher:
 ```sh
 build -ip fifo -compile
 build -ip fifo -lint
+build -ip fifo -synth
 build -ip fifo -test sanity
 build -ip fifo -regress level_0
 ```
@@ -76,10 +81,12 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
+- Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
 - Tests and regressions are selected from YAML definitions under `src/dv/<ip>/code/tests/` and `src/dv/<ip>/regressions/`.
 - Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
 - Test outputs include at least a simulation log, a tracker JSON file, and a VCD waveform when waveform dumping is enabled in the environment config.
 - Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
+- Synthesis-specific source collateral lives under `src/syn/<ip>/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
 
 ## Development workflow
 

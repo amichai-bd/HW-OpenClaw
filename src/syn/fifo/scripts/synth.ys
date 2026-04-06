@@ -1,0 +1,5 @@
+read_verilog -sv {yosys_read_verilog_args}
+hierarchy -check -top {rtl_module}
+synth -top {rtl_module}
+write_json {synth_json}
+write_verilog -noattr {synth_netlist}

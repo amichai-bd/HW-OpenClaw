@@ -9,6 +9,11 @@ output_layout:
   generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
   lint_out_dir: workdir/{tag}/{ip}/lint/
   lint_log: workdir/{tag}/{ip}/lint/lint.log
+  synth_out_dir: workdir/{tag}/{ip}/synth/
+  synth_log: workdir/{tag}/{ip}/synth/synth.log
+  generated_synth_script: workdir/{tag}/{ip}/synth/synth_{ip}.ys
+  synth_json: workdir/{tag}/{ip}/synth/{ip}.json
+  synth_netlist: workdir/{tag}/{ip}/synth/{ip}_netlist.v
   compile_dir: workdir/{tag}/{ip}/compile/
   compile_log: workdir/{tag}/{ip}/compile/compile.log
   binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
@@ -25,6 +30,7 @@ ip:
   fifo:
     rtl_filelist: src/rtl/fifo/filelist_rtl_fifo.f
     rtl_module: fifo
+    synth_script: src/syn/fifo/scripts/synth.ys
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
     rtl_top: src/rtl/fifo/code/fifo.sv
@@ -39,6 +45,7 @@ ip:
   counter:
     rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
     rtl_module: counter
+    synth_script: src/syn/counter/scripts/synth.ys
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv

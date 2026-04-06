@@ -46,6 +46,9 @@
 │           ├── code/
 │           ├── lint/
 │           └── filelist_rtl_<ip>.f
+│   └── syn/
+│       └── <ip>/
+│           └── scripts/
 ├── tools/
 └── workdir/
 ```
@@ -66,6 +69,7 @@
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
+- Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
@@ -113,5 +117,5 @@ src/dv/<ip>/
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
-- The standard builder flows include `build -ip <ip> -lint`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
+- The standard builder flows include `build -ip <ip> -lint`, `-synth`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
