@@ -70,16 +70,18 @@
 - If a tool needs build steps, it must read them from the tool YAML file.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
+- Shared synthesis profile data should live in `cfg/synth.yaml`.
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
-- Shared synthesis collateral such as generic libraries, default constraints, and reusable synthesis scripts should live under `src/syn/common/`.
+- Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 - RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
 - The initial synthesis flow is a generic Yosys foundation flow, not a signoff flow. Synthesis warnings from generic mapping should be captured in report artifacts under `workdir/<tag>/<ip>/synth/`, not hidden.
+- Synthesis runs should also emit a machine-readable summary artifact derived from the raw reports so automation can consume stable data without scraping Yosys text logs.
 
 ## Standard DV layout
 

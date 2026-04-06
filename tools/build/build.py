@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from datetime import datetime
@@ -16,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BUILD_CONFIG = REPO_ROOT / "tools" / "build" / "build.yaml"
 IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
 ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
+SYNTH_CONFIG = REPO_ROOT / "cfg" / "synth.yaml"
 
 
 class BuildError(RuntimeError):
@@ -107,6 +109,7 @@ def get_ip_data(ip_name: str) -> dict:
             "synth_stat_json",
             "synth_area_report",
             "synth_check_report",
+            "synth_summary_yaml",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -133,9 +136,6 @@ def get_ip_data(ip_name: str) -> dict:
         [
             "rtl_filelist",
             "rtl_module",
-            "synth_script",
-            "synth_liberty",
-            "synth_delay_target_ps",
             "dv_filelist",
             "all_filelist",
             "rtl_top",
@@ -157,11 +157,54 @@ def get_ip_data(ip_name: str) -> dict:
     ip_data["binary_name"] = ip_data["sim_binary"]
     ip_data["lint_source_dir"] = resolve_path(ip_data["lint_dir"])
     ip_data["lint_waiver"] = resolve_path(ip_data["lint_waiver"])
-    ip_data["synth_script"] = resolve_path(ip_data["synth_script"])
-    ip_data["synth_liberty"] = resolve_path(ip_data["synth_liberty"])
     ip_data["test_name"] = ""
     ip_data["regress_name"] = ""
     return ip_data
+
+
+def get_synth_profile(profile_name: str) -> dict:
+    synth_root = load_yaml(SYNTH_CONFIG)
+    require_keys(synth_root, ["scripts", "profiles"], str(SYNTH_CONFIG))
+    scripts = synth_root["scripts"]
+    profiles = synth_root["profiles"]
+    if not isinstance(scripts, dict):
+        raise BuildError(f"'scripts' must be a mapping in {SYNTH_CONFIG}")
+    if not isinstance(profiles, dict):
+        raise BuildError(f"'profiles' must be a mapping in {SYNTH_CONFIG}")
+    if profile_name not in profiles:
+        raise BuildError(f"unknown synth profile '{profile_name}'")
+
+    profile = dict(profiles[profile_name])
+    if "enabled" in profile and not profile["enabled"]:
+        raise BuildError(f"synth profile '{profile_name}' is defined but not enabled")
+    require_keys(
+        profile,
+        ["description", "script", "liberty", "abc_mode", "delay_target_ps", "check_is_gating", "technology"],
+        f"profiles.{profile_name}",
+    )
+    script_name = profile["script"]
+    if script_name not in scripts:
+        raise BuildError(f"unknown synth script '{script_name}' for profile '{profile_name}'")
+    script_cfg = scripts[script_name]
+    if not isinstance(script_cfg, dict):
+        raise BuildError(f"'scripts.{script_name}' must be a mapping in {SYNTH_CONFIG}")
+    require_keys(script_cfg, ["path"], f"scripts.{script_name}")
+
+    technology = profile["technology"]
+    if not isinstance(technology, dict):
+        raise BuildError(f"'technology' must be a mapping in profiles.{profile_name}")
+    require_keys(technology, ["kind", "source", "note"], f"profiles.{profile_name}.technology")
+
+    return {
+        "synth_profile": profile_name,
+        "synth_profile_description": profile["description"],
+        "synth_script": resolve_path(script_cfg["path"]),
+        "synth_liberty": resolve_path(profile["liberty"]),
+        "synth_abc_mode": profile["abc_mode"],
+        "synth_delay_target_ps": profile["delay_target_ps"],
+        "synth_check_is_gating": bool(profile["check_is_gating"]),
+        "synth_technology": technology,
+    }
 
 
 def get_env_data() -> dict:
@@ -239,6 +282,7 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["synth_stat_json"] = resolve_path(apply_template(layout["synth_stat_json"], ip_data))
     ip_data["synth_area_report"] = resolve_path(apply_template(layout["synth_area_report"], ip_data))
     ip_data["synth_check_report"] = resolve_path(apply_template(layout["synth_check_report"], ip_data))
+    ip_data["synth_summary_yaml"] = resolve_path(apply_template(layout["synth_summary_yaml"], ip_data))
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
@@ -407,6 +451,139 @@ def prepare_synth_script(context: dict) -> None:
     destination_path.write_text(rendered + "\n", encoding="utf-8")
 
 
+def parse_area_report(report_path: Path) -> dict:
+    data: dict[str, int | dict[str, int] | None] = {"estimated_transistors": None}
+    cell_counts: dict[str, int] = {}
+    in_cells = False
+    for raw_line in report_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if stripped.startswith("Number of wires:"):
+            data["num_wires"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of wire bits:"):
+            data["num_wire_bits"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of public wires:"):
+            data["num_pub_wires"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of public wire bits:"):
+            data["num_pub_wire_bits"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of memories:"):
+            data["num_memories"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of memory bits:"):
+            data["num_memory_bits"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of processes:"):
+            data["num_processes"] = int(stripped.split(":")[1].strip())
+        elif stripped.startswith("Number of cells:"):
+            data["num_cells"] = int(stripped.split(":")[1].strip())
+            in_cells = True
+        elif stripped.startswith("Estimated number of transistors:"):
+            value = stripped.split(":")[1].strip().rstrip("+")
+            data["estimated_transistors"] = int(value)
+            in_cells = False
+        elif in_cells and stripped:
+            parts = stripped.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                cell_counts[parts[0]] = int(parts[1])
+    data["num_cells_by_type"] = cell_counts
+    return data
+
+
+def parse_check_report(report_path: Path) -> dict:
+    warnings: list[str] = []
+    problem_count = 0
+    for raw_line in report_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("Warning:"):
+            warnings.append(line)
+        if "Found and reported" in line and "problems" in line:
+            parts = line.split()
+            for token in parts:
+                if token.isdigit():
+                    problem_count = int(token)
+                    break
+    return {
+        "warning_count": len(warnings),
+        "problem_count": problem_count,
+        "warnings_sample": warnings[:20],
+    }
+
+
+def relativize_path(path_text: str) -> str:
+    return str(Path(path_text).resolve().relative_to(REPO_ROOT))
+
+
+def prepare_synth_summary(context: dict) -> None:
+    stat_path = Path(context["synth_stat_json"])
+    area_path = Path(context["synth_area_report"])
+    check_path = Path(context["synth_check_report"])
+    if not stat_path.is_file():
+        raise BuildError(f"missing synth stat report: {stat_path}")
+    if not area_path.is_file():
+        raise BuildError(f"missing synth area report: {area_path}")
+    if not check_path.is_file():
+        raise BuildError(f"missing synth check report: {check_path}")
+
+    stat_data = json.loads(stat_path.read_text(encoding="utf-8"))
+    area_data = parse_area_report(area_path)
+    check_data = parse_check_report(check_path)
+
+    design_stats = stat_data.get("design", {})
+    summary = {
+        "synth": {
+            "ip": context["ip"],
+            "tag": context["tag"],
+            "module": context["rtl_module"],
+            "profile": context["synth_profile"],
+            "profile_description": context["synth_profile_description"],
+            "status": {
+                "completed": True,
+                "check_is_gating": context["synth_check_is_gating"],
+                "check_warning_count": check_data["warning_count"],
+                "check_problem_count": check_data["problem_count"],
+            },
+            "tool": {
+                "yosys_exe": context["yosys_exe"],
+                "yosys_version": context["yosys_version"],
+            },
+            "technology": {
+                "kind": context["synth_technology"]["kind"],
+                "source": context["synth_technology"]["source"],
+                "note": context["synth_technology"]["note"],
+                "liberty": relativize_path(context["synth_liberty"]),
+                "abc_mode": context["synth_abc_mode"],
+                "delay_target_ps": context["synth_delay_target_ps"],
+            },
+            "artifacts": {
+                "generated_script": relativize_path(context["generated_synth_script"]),
+                "synth_log": relativize_path(context["synth_log"]),
+                "json_netlist": relativize_path(context["synth_json"]),
+                "verilog_netlist": relativize_path(context["synth_netlist"]),
+                "stat_report": relativize_path(context["synth_stat_json"]),
+                "area_report": relativize_path(context["synth_area_report"]),
+                "check_report": relativize_path(context["synth_check_report"]),
+            },
+            "design": {
+                "num_wires": design_stats.get("num_wires"),
+                "num_wire_bits": design_stats.get("num_wire_bits"),
+                "num_pub_wires": design_stats.get("num_pub_wires"),
+                "num_pub_wire_bits": design_stats.get("num_pub_wire_bits"),
+                "num_memories": design_stats.get("num_memories"),
+                "num_memory_bits": design_stats.get("num_memory_bits"),
+                "num_processes": design_stats.get("num_processes"),
+                "num_cells": design_stats.get("num_cells"),
+                "num_cells_by_type": design_stats.get("num_cells_by_type", {}),
+                "estimated_transistors": area_data.get("estimated_transistors"),
+            },
+            "check": {
+                "warnings_sample": check_data["warnings_sample"],
+            },
+        }
+    }
+
+    summary_path = Path(context["synth_summary_yaml"])
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+
 def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         print("wait prepare_filelists", flush=True)
@@ -415,6 +592,10 @@ def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
         print("wait prepare_synth_script", flush=True)
         prepare_synth_script(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_synth_summary":
+        print("wait prepare_synth_summary", flush=True)
+        prepare_synth_summary(context)
         return
 
     command_text, log_name = normalize_command(command)
@@ -658,6 +839,9 @@ def main() -> int:
             context["run_dir"] = context["lint_out_dir"]
             context["log_file"] = context["lint_log"]
         elif args.synth:
+            if "synth_profile" not in context:
+                raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
+            context.update(get_synth_profile(context["synth_profile"]))
             if not Path(context["synth_script"]).is_file():
                 raise BuildError(f"missing synth script: {context['synth_script']}")
             if not Path(context["synth_liberty"]).is_file():

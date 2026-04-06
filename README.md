@@ -11,7 +11,8 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 ├── cfg/
 │   ├── env.sh
 │   ├── env.yaml
-│   └── ip.yaml
+│   ├── ip.yaml
+│   └── synth.yaml
 ├── src/
 │   ├── dv/
 │   │   └── <ip>/
@@ -31,10 +32,8 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 │           ├── lint/
 │           └── filelist_rtl_<ip>.f
 │   └── syn/
-│       ├── common/
-│       │   ├── constraints/
-│       │   └── lib/
-│       └── <ip>/
+│       └── common/
+│           ├── lib/
 │           └── scripts/
 ├── tools/
 │   └── build/
@@ -48,10 +47,11 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - YAML files are the source of truth for tool flow, IP metadata, output layout, and environment data.
 - `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
+- `cfg/synth.yaml` owns shared synthesis profiles, reusable script selection, and synthesis-technology metadata.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
 - Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
 - Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
-- Shared synthesis collateral such as generic liberty files, default constraints, and reusable synthesis scripts should live under `src/syn/common/`.
+- Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
 - Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
 - DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
 
@@ -86,14 +86,15 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
-- The current synthesis flow uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
+- The current synthesis flow is selected through `cfg/synth.yaml`.
+- The active shared synth profile uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
 - The current synthesis `check` report is informational. It is captured as a run artifact, but it is not yet a hard signoff gate because the generic mapped flow still emits Yosys-level structural warnings that need a richer technology model to resolve cleanly.
 - Tests and regressions are selected from YAML definitions under `src/dv/<ip>/code/tests/` and `src/dv/<ip>/regressions/`.
 - Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
 - Test outputs include at least a simulation log, a tracker JSON file, and a VCD waveform when waveform dumping is enabled in the environment config.
 - Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
-- Synthesis-specific source collateral lives under `src/syn/<ip>/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
-- Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, and a synthesis `check` report.
+- Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
+- Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, and a derived `synth_summary.yaml` artifact for automation.
 
 ## Development workflow
 

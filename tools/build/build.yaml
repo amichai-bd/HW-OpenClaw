@@ -30,6 +30,7 @@ steps:
       - cmd: mkdir -p {synth_out_dir}
       - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
         log: "{log_file}"
+      - action: prepare_synth_summary
   compile:
     deps:
       - prepare
