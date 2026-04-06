@@ -17,6 +17,7 @@ output_layout:
   synth_stat_json: workdir/{tag}/{ip}/synth/{ip}_stat.json
   synth_area_report: workdir/{tag}/{ip}/synth/{ip}_area.rpt
   synth_check_report: workdir/{tag}/{ip}/synth/{ip}_check.rpt
+  synth_summary_yaml: workdir/{tag}/{ip}/synth/{ip}_summary.yaml
   compile_dir: workdir/{tag}/{ip}/compile/
   compile_log: workdir/{tag}/{ip}/compile/compile.log
   binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
@@ -33,9 +34,7 @@ ip:
   fifo:
     rtl_filelist: src/rtl/fifo/filelist_rtl_fifo.f
     rtl_module: fifo
-    synth_script: src/syn/fifo/scripts/synth.ys
-    synth_liberty: src/syn/common/lib/yosys_cells.lib
-    synth_delay_target_ps: 1000
+    synth_profile: generic_cmos
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
     rtl_top: src/rtl/fifo/code/fifo.sv
@@ -50,9 +49,7 @@ ip:
   counter:
     rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
     rtl_module: counter
-    synth_script: src/syn/counter/scripts/synth.ys
-    synth_liberty: src/syn/common/lib/yosys_cells.lib
-    synth_delay_target_ps: 1000
+    synth_profile: generic_cmos
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv

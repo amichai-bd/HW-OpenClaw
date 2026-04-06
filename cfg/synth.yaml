@@ -1,0 +1,22 @@
+scripts:
+  generic:
+    path: src/syn/common/scripts/synth_generic.ys
+
+profiles:
+  generic_cmos:
+    description: generic Yosys CMOS2 mapping for foundation-level synthesis
+    script: generic
+    liberty: src/syn/common/lib/yosys_cells.lib
+    abc_mode: cmos2
+    delay_target_ps: 1000
+    check_is_gating: false
+    technology:
+      kind: generic
+      source: yosys
+      note: generic mapping only; not a signoff technology library
+
+  sky130_fd_sc_hd_tt_025C_1v80:
+    description: future open-source Sky130 HD technology target
+    enabled: false
+    source_repo: https://github.com/google/skywater-pdk-libs-sky130_fd_sc_hd
+    note: upstream timing collateral is published as .lib.json views and is not yet wired into this builder flow
