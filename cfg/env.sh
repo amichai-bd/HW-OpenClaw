@@ -27,6 +27,7 @@ wave = env["simulation"]["waveform"]
 
 exports = {
     "MODEL_ROOT": env["model_root"].format(repo_root=repo_root),
+    "PROJECT_BIN": env["bin_dir"].format(repo_root=repo_root),
     "PYTHON3_EXE": tools["python3"]["exe"],
     "PYTHON3_VERSION": tools["python3"]["version"],
     "VERILATOR_EXE": tools["verilator"]["exe"],
@@ -40,5 +41,11 @@ exports = {
 
 for key, value in exports.items():
     print(f"export {key}={shlex.quote(value)}")
+
+project_bin = exports["PROJECT_BIN"]
+print('case ":${PATH:-}:" in')
+print(f'  *:{shlex.quote(project_bin)}:*) ;;')
+print(f'  *) export PATH={shlex.quote(project_bin)}:"$PATH" ;;')
+print("esac")
 PY
 )"
