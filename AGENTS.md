@@ -38,3 +38,10 @@ src/
         ├── code/
         └── filelist/
 ```
+
+## Coding style and methodology
+
+- Module and file names should match, and both must be lowercase.
+- Parameter names must be uppercase.
+- Signal names should be lowercase with underscores.
+- Avoid explicit non-blocking assignment style in favor of macros when that rule is introduced later.
