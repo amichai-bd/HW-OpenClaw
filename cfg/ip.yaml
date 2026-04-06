@@ -7,6 +7,8 @@ output_layout:
   generated_rtl_filelist: workdir/{tag}/{ip}/filelist/filelist_rtl_{ip}.f
   generated_dv_filelist: workdir/{tag}/{ip}/filelist/filelist_dv_{ip}.f
   generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
+  lint_out_dir: workdir/{tag}/{ip}/lint/
+  lint_log: workdir/{tag}/{ip}/lint/lint.log
   compile_dir: workdir/{tag}/{ip}/compile/
   compile_log: workdir/{tag}/{ip}/compile/compile.log
   binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
@@ -22,9 +24,12 @@ output_layout:
 ip:
   fifo:
     rtl_filelist: src/rtl/fifo/filelist_rtl_fifo.f
+    rtl_module: fifo
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
     rtl_top: src/rtl/fifo/code/fifo.sv
+    lint_dir: src/rtl/fifo/lint/
+    lint_waiver: src/rtl/fifo/lint/verilator_waiver.vlt
     dv_top: src/dv/fifo/code/tb/
     tb_top_module: fifo_tb
     sim_binary: Vfifo_tb
@@ -33,9 +38,12 @@ ip:
 
   counter:
     rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
+    rtl_module: counter
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv
+    lint_dir: src/rtl/counter/lint/
+    lint_waiver: src/rtl/counter/lint/verilator_waiver.vlt
     dv_top: src/dv/counter/code/tb/
     tb_top_module: counter_tb
     sim_binary: Vcounter_tb

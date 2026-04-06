@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run project build steps")
     parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
+    parser.add_argument("-lint", action="store_true", help="run lint step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", help="run a named test")
     parser.add_argument("-regress", help="run a named regression")
@@ -51,12 +52,12 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     requested_modes = sum(
-        [1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
+        [1 if args.lint else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
     )
     if requested_modes != 1:
-        raise BuildError("select exactly one of -compile, -test, -regress, or -debug")
+        raise BuildError("select exactly one of -lint, -compile, -test, -regress, or -debug")
     if not args.debug and not args.ip:
-        raise BuildError("'-ip' is required for -compile, -test, or -regress")
+        raise BuildError("'-ip' is required for -lint, -compile, -test, or -regress")
     return args
 
 
@@ -95,6 +96,8 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_rtl_filelist",
             "generated_dv_filelist",
             "generated_all_filelist",
+            "lint_out_dir",
+            "lint_log",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -120,9 +123,12 @@ def get_ip_data(ip_name: str) -> dict:
         ip_data,
         [
             "rtl_filelist",
+            "rtl_module",
             "dv_filelist",
             "all_filelist",
             "rtl_top",
+            "lint_dir",
+            "lint_waiver",
             "dv_top",
             "tb_top_module",
             "sim_binary",
@@ -137,6 +143,8 @@ def get_ip_data(ip_name: str) -> dict:
     ip_data["repo_root"] = str(REPO_ROOT)
     ip_data["top_module"] = ip_data["tb_top_module"]
     ip_data["binary_name"] = ip_data["sim_binary"]
+    ip_data["lint_source_dir"] = resolve_path(ip_data["lint_dir"])
+    ip_data["lint_waiver"] = resolve_path(ip_data["lint_waiver"])
     ip_data["test_name"] = ""
     ip_data["regress_name"] = ""
     return ip_data
@@ -204,10 +212,12 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["generated_all_filelist"] = resolve_path(
         apply_template(layout["generated_all_filelist"], ip_data)
     )
+    ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
     ip_data["log_file"] = resolve_path(apply_template(layout["compile_log"], ip_data))
+    ip_data["lint_log"] = resolve_path(apply_template(layout["lint_log"], ip_data))
     ip_data["tracker_path"] = ""
     return ip_data
 
@@ -278,6 +288,8 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
 def resolve_workflow_name(args: argparse.Namespace) -> str:
     if args.debug:
         return "debug"
+    if args.lint:
+        return "lint"
     if args.compile:
         return "compile"
     if args.test:
@@ -574,11 +586,17 @@ def main() -> int:
         context = apply_run_paths(context, resolve_tag(args.tag, context))
         regression_tests: list[str] = []
 
+        if not Path(context["lint_waiver"]).is_file():
+            raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
+
         if args.test:
             context = get_test_data(context, args.test, "test")
         elif args.regress:
             regression_tests = get_regression_tests(context, args.regress)
             context["regress_name"] = args.regress
+        elif args.lint:
+            context["run_dir"] = context["lint_out_dir"]
+            context["log_file"] = context["lint_log"]
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 

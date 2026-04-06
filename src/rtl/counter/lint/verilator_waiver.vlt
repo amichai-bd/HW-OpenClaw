@@ -1,0 +1,2 @@
+`verilator_config
+// Add counter-specific Verilator waivers here when needed.
