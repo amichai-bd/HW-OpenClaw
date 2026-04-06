@@ -586,15 +586,14 @@ def main() -> int:
         context = apply_run_paths(context, resolve_tag(args.tag, context))
         regression_tests: list[str] = []
 
-        if not Path(context["lint_waiver"]).is_file():
-            raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
-
         if args.test:
             context = get_test_data(context, args.test, "test")
         elif args.regress:
             regression_tests = get_regression_tests(context, args.regress)
             context["regress_name"] = args.regress
         elif args.lint:
+            if not Path(context["lint_waiver"]).is_file():
+                raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
             context["run_dir"] = context["lint_out_dir"]
             context["log_file"] = context["lint_log"]
 
