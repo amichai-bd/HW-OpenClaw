@@ -38,17 +38,17 @@ endtask
 
 task tracker_seed_flags();
 begin
-    tracker_max_prev = at_max;
-    tracker_zero_prev = at_zero;
+    tracker_max_prev = vif.at_max;
+    tracker_zero_prev = vif.at_zero;
 end
 endtask
 
 task tracker_sample_flags();
 begin
-    if (!tracker_max_prev && at_max) tracker_emit_event("max");
-    if (!tracker_zero_prev && at_zero) tracker_emit_event("zero");
-    tracker_max_prev = at_max;
-    tracker_zero_prev = at_zero;
+    if (!tracker_max_prev && vif.at_max) tracker_emit_event("max");
+    if (!tracker_zero_prev && vif.at_zero) tracker_emit_event("zero");
+    tracker_max_prev = vif.at_max;
+    tracker_zero_prev = vif.at_zero;
 end
 endtask
 

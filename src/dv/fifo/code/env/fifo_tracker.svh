@@ -38,17 +38,17 @@ endtask
 
 task tracker_sample_flags();
 begin
-    if (!tracker_full_prev && full) tracker_emit_event("full");
-    if (!tracker_empty_prev && empty) tracker_emit_event("empty");
-    tracker_full_prev = full;
-    tracker_empty_prev = empty;
+    if (!tracker_full_prev && vif.full) tracker_emit_event("full");
+    if (!tracker_empty_prev && vif.empty) tracker_emit_event("empty");
+    tracker_full_prev = vif.full;
+    tracker_empty_prev = vif.empty;
 end
 endtask
 
 task tracker_seed_flags();
 begin
-    tracker_full_prev = full;
-    tracker_empty_prev = empty;
+    tracker_full_prev = vif.full;
+    tracker_empty_prev = vif.empty;
 end
 endtask
 

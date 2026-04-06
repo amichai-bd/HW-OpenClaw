@@ -55,3 +55,39 @@ src/
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
+
+## Standard DV layout
+
+- Each IP DV environment should follow this layout:
+
+```text
+src/dv/<ip>/
+├── code/
+│   ├── tb/
+│   │   └── <ip>_tb.sv
+│   ├── if/
+│   │   └── <ip>_if.sv
+│   ├── pkg/
+│   │   └── <ip>_dv_pkg.sv
+│   ├── env/
+│   │   ├── <ip>_types.sv
+│   │   ├── <ip>_cfg.sv
+│   │   ├── <ip>_generator.sv
+│   │   ├── <ip>_driver.sv
+│   │   ├── <ip>_monitor.sv
+│   │   ├── <ip>_model.sv
+│   │   ├── <ip>_scoreboard.sv
+│   │   ├── <ip>_coverage.sv
+│   │   ├── <ip>_agent.sv
+│   │   ├── <ip>_env.sv
+│   │   └── <ip>_tracker.svh
+│   └── tests/
+├── filelist/
+└── regressions/
+```
+
+- `tb` should stay thin and only own top-level hookup, plusargs, DUT instantiation, and environment construction.
+- `if` should own DUT-facing interface signals, clocking blocks, and modports when needed.
+- `pkg` should gather reusable DV types, configuration helpers, and shared utility functions.
+- `env` should contain the predictable verification component split: generator, driver, monitor, model, scoreboard, coverage, agent, env, and tracker.
+- Test-specific selection should come from YAML and plusargs, not from ad hoc directory discovery or implicit defaults.
