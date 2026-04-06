@@ -16,19 +16,19 @@ steps:
       - prepare
     commands:
       - cmd: mkdir -p {compile_dir}
-      - cmd: cd {compile_dir} && verilator -Wall --binary --top-module {top_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
+      - cmd: cd {compile_dir} && {verilator_exe} -Wall --binary --top-module {top_module} {verilator_trace_flag} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
         log: "{log_file}"
   simulate:
     deps:
       - compile
     commands:
       - cmd: mkdir -p {run_dir}
-      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path}
+      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
         log: "{log_file}"
   regress:
     deps:
       - compile
     commands:
       - cmd: mkdir -p {run_dir}
-      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path}
+      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
         log: "{log_file}"

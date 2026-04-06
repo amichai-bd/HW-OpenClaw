@@ -15,6 +15,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BUILD_CONFIG = REPO_ROOT / "tools" / "build" / "build.yaml"
 IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
+ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
 
 
 class BuildError(RuntimeError):
@@ -136,6 +137,51 @@ def get_ip_data(ip_name: str) -> dict:
     return ip_data
 
 
+def get_env_data() -> dict:
+    env_root = load_yaml(ENV_CONFIG)
+    require_keys(env_root, ["environment"], str(ENV_CONFIG))
+    env = env_root["environment"]
+    if not isinstance(env, dict):
+        raise BuildError(f"'environment' must be a mapping in {ENV_CONFIG}")
+
+    require_keys(env, ["model_root", "tools", "simulation"], "environment")
+    tools = env["tools"]
+    if not isinstance(tools, dict):
+        raise BuildError(f"'tools' must be a mapping in {ENV_CONFIG}")
+    require_keys(tools, ["python3", "verilator", "gtkwave"], "environment.tools")
+    require_keys(tools["verilator"], ["exe", "version", "version_cmd", "trace_flag"], "environment.tools.verilator")
+    require_keys(tools["python3"], ["exe", "version", "version_cmd"], "environment.tools.python3")
+    require_keys(tools["gtkwave"], ["exe", "version", "version_cmd"], "environment.tools.gtkwave")
+
+    simulation = env["simulation"]
+    if not isinstance(simulation, dict):
+        raise BuildError(f"'simulation' must be a mapping in {ENV_CONFIG}")
+    require_keys(simulation, ["waveform"], "environment.simulation")
+    waveform = simulation["waveform"]
+    if not isinstance(waveform, dict):
+        raise BuildError(f"'waveform' must be a mapping in {ENV_CONFIG}")
+    require_keys(
+        waveform,
+        ["enabled", "format", "test_wave", "regression_test_wave"],
+        "environment.simulation.waveform",
+    )
+
+    return {
+        "model_root": env["model_root"].format(repo_root=str(REPO_ROOT)),
+        "python3_exe": tools["python3"]["exe"],
+        "python3_version": tools["python3"]["version"],
+        "verilator_exe": tools["verilator"]["exe"],
+        "verilator_version": tools["verilator"]["version"],
+        "verilator_trace_flag": tools["verilator"]["trace_flag"] if waveform["enabled"] else "",
+        "gtkwave_exe": tools["gtkwave"]["exe"],
+        "gtkwave_version": tools["gtkwave"]["version"],
+        "waveform_enabled": bool(waveform["enabled"]),
+        "waveform_format": waveform["format"],
+        "waveform_test_path": waveform["test_wave"],
+        "waveform_regression_path": waveform["regression_test_wave"],
+    }
+
+
 def apply_template(value: str, context: dict) -> str:
     return value.format(**context)
 
@@ -182,15 +228,21 @@ def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
         run_dir = resolve_path(apply_template(layout["test_out_dir"], ip_data))
         log_file = resolve_path(apply_template(layout["test_log"], ip_data))
         tracker_path = resolve_path(apply_template(layout["test_tracker"], ip_data))
+        wave_path = resolve_path(apply_template(ip_data["waveform_test_path"], ip_data))
     else:
         run_dir = resolve_path(apply_template(layout["regression_test_out_dir"], ip_data))
         log_file = resolve_path(apply_template(layout["regression_test_log"], ip_data))
         tracker_path = resolve_path(
             apply_template(layout["regression_test_tracker"], ip_data)
         )
+        wave_path = resolve_path(
+            apply_template(ip_data["waveform_regression_path"], ip_data)
+        )
     ip_data["run_dir"] = run_dir
     ip_data["log_file"] = log_file
     ip_data["tracker_path"] = tracker_path
+    ip_data["wave_path"] = wave_path
+    ip_data["wave_enable"] = 1 if ip_data["waveform_enabled"] else 0
     return ip_data
 
 
@@ -409,6 +461,7 @@ def main() -> int:
             raise BuildError(f"workflow '{workflow_name}' is not defined")
 
         context = get_ip_data(args.ip)
+        context.update(get_env_data())
         context = apply_run_paths(context, resolve_tag(args.tag, context))
         regression_tests: list[str] = []
 

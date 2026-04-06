@@ -52,6 +52,7 @@ src/
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
 - If a tool needs build steps, it must read them from the tool YAML file.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
+- Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
