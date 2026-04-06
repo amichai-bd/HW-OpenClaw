@@ -1,3 +1,3 @@
-+incdir+/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/src/rtl/fifo/code
-/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/src/rtl/fifo/code/macros.svh
-/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/src/rtl/fifo/code/fifo.sv
++incdir+$MODEL_ROOT/src/rtl/fifo/code
+$MODEL_ROOT/src/rtl/fifo/code/macros.svh
+$MODEL_ROOT/src/rtl/fifo/code/fifo.sv

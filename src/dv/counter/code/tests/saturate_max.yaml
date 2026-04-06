@@ -1,0 +1,3 @@
+test:
+  name: saturate_max
+  description: increment to max and verify saturation

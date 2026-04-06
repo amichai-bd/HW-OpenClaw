@@ -64,8 +64,8 @@ module fifo #(
     `DFF_RST(rd_ptr, rd_ptr_next, rst_n)
     `DFF_RST(count, count_next, rst_n)
     `DFF_RST(dout, dout_next, rst_n)
-    `DFF_RST(full, full_next, rst_n)
-    `DFF_RST(empty, empty_next, rst_n)
+    `DFF_RST_VAL(full, full_next, rst_n, 1'b0)
+    `DFF_RST_VAL(empty, empty_next, rst_n, 1'b1)
 
     genvar g;
     generate

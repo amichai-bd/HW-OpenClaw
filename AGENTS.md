@@ -45,3 +45,13 @@ src/
 - Parameter names must be uppercase.
 - Signal names should be lowercase with underscores.
 - Avoid explicit non-blocking assignment style in favor of macros when that rule is introduced later.
+
+## Tool and config rules
+
+- Repository tools must treat YAML files as the source of truth.
+- Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
+- If a tool needs build steps, it must read them from the tool YAML file.
+- If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
+- Source filelists should be authored relative to `$MODEL_ROOT`.
+- Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
+- Scripts should fail clearly when required YAML keys or files are missing instead of guessing.

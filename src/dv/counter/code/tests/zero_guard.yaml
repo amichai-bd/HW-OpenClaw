@@ -1,0 +1,3 @@
+test:
+  name: zero_guard
+  description: decrement at zero and verify guard behavior

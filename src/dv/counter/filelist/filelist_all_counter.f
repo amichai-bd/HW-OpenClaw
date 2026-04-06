@@ -1,0 +1,2 @@
+-F $MODEL_ROOT/src/rtl/counter/filelist_rtl_counter.f
+-F $MODEL_ROOT/src/dv/counter/filelist/filelist_dv_counter.f

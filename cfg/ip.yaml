@@ -1,0 +1,41 @@
+model_root_var: $MODEL_ROOT
+
+output_layout:
+  tag_root: workdir/{tag}/
+  ip_root: workdir/{tag}/{ip}/
+  filelist_dir: workdir/{tag}/{ip}/filelist/
+  generated_rtl_filelist: workdir/{tag}/{ip}/filelist/filelist_rtl_{ip}.f
+  generated_dv_filelist: workdir/{tag}/{ip}/filelist/filelist_dv_{ip}.f
+  generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
+  compile_dir: workdir/{tag}/{ip}/compile/
+  compile_log: workdir/{tag}/{ip}/compile/compile.log
+  binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
+  test_out_dir: workdir/{tag}/{ip}/tests/{test_name}/
+  test_log: workdir/{tag}/{ip}/tests/{test_name}/simulate.log
+  test_tracker: workdir/{tag}/{ip}/tests/{test_name}/{ip}_tracker.json
+  regression_test_out_dir: workdir/{tag}/{ip}/regressions/{regress_name}/{test_name}/
+  regression_test_log: workdir/{tag}/{ip}/regressions/{regress_name}/{test_name}/simulate.log
+  regression_test_tracker: workdir/{tag}/{ip}/regressions/{regress_name}/{test_name}/{ip}_tracker.json
+
+ip:
+  fifo:
+    rtl_filelist: src/rtl/fifo/filelist_rtl_fifo.f
+    dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
+    all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
+    rtl_top: src/rtl/fifo/code/fifo.sv
+    dv_top: src/dv/fifo/code/tb/
+    tb_top_module: fifo_tb
+    sim_binary: Vfifo_tb
+    regression_dir: src/dv/fifo/regressions/
+    test_dir: src/dv/fifo/code/tests/
+
+  counter:
+    rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
+    dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
+    all_filelist: src/dv/counter/filelist/filelist_all_counter.f
+    rtl_top: src/rtl/counter/code/counter.sv
+    dv_top: src/dv/counter/code/tb/
+    tb_top_module: counter_tb
+    sim_binary: Vcounter_tb
+    regression_dir: src/dv/counter/regressions/
+    test_dir: src/dv/counter/code/tests/

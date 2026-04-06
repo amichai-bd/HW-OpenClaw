@@ -1,0 +1,6 @@
+regression:
+  name: level_1
+  tests:
+    - sanity
+    - back_to_back
+    - saturate_max

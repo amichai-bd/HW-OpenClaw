@@ -1,0 +1,7 @@
+regression:
+  name: level_2
+  tests:
+    - sanity
+    - back_to_back
+    - back_pressure
+    - empty_guard
