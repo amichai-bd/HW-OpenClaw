@@ -42,18 +42,21 @@ def require_keys(data: dict, required_keys: list[str], context: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run project build steps")
-    parser.add_argument("-ip", required=True, help="IP name to build")
+    parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", help="run a named test")
     parser.add_argument("-regress", help="run a named regression")
+    parser.add_argument("-debug", action="store_true", help="list saved waveforms and open one in gtkwave")
     args = parser.parse_args()
 
     requested_modes = sum(
-        [1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0]
+        [1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
     )
     if requested_modes != 1:
-        raise BuildError("select exactly one of -compile, -test, or -regress")
+        raise BuildError("select exactly one of -compile, -test, -regress, or -debug")
+    if not args.debug and not args.ip:
+        raise BuildError("'-ip' is required for -compile, -test, or -regress")
     return args
 
 
@@ -273,6 +276,8 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
 
 
 def resolve_workflow_name(args: argparse.Namespace) -> str:
+    if args.debug:
+        return "debug"
     if args.compile:
         return "compile"
     if args.test:
@@ -442,9 +447,115 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
     print(f"done regress ({base_context['regress_name']})", flush=True)
 
 
+def parse_debug_entry(wave_path: Path) -> dict | None:
+    parts = wave_path.relative_to(REPO_ROOT).parts
+    if len(parts) < 5 or parts[0] != "workdir":
+        return None
+
+    tag = parts[1]
+    ip_name = parts[2]
+
+    if len(parts) == 6 and parts[3] == "tests":
+        test_name = parts[4]
+        run_kind = "test"
+        regression_name = ""
+    elif len(parts) == 7 and parts[3] == "regressions":
+        regression_name = parts[4]
+        test_name = parts[5]
+        run_kind = "regress"
+    else:
+        return None
+
+    stat_result = wave_path.stat()
+    return {
+        "wave_path": wave_path,
+        "tag": tag,
+        "ip": ip_name,
+        "test_name": test_name,
+        "run_kind": run_kind,
+        "regress_name": regression_name,
+        "timestamp": datetime.fromtimestamp(stat_result.st_mtime),
+    }
+
+
+def discover_debug_entries() -> list[dict]:
+    workdir = REPO_ROOT / "workdir"
+    if not workdir.is_dir():
+        return []
+
+    entries: list[dict] = []
+    for wave_path in workdir.glob("*/*/tests/*/*.vcd"):
+        parsed = parse_debug_entry(wave_path)
+        if parsed is not None:
+            entries.append(parsed)
+    for wave_path in workdir.glob("*/*/regressions/*/*/*.vcd"):
+        parsed = parse_debug_entry(wave_path)
+        if parsed is not None:
+            entries.append(parsed)
+
+    entries.sort(key=lambda entry: entry["timestamp"], reverse=True)
+    return entries
+
+
+def print_debug_entries(entries: list[dict]) -> None:
+    for index, entry in enumerate(entries, start=1):
+        timestamp = entry["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
+        reg_text = ""
+        if entry["run_kind"] == "regress":
+            reg_text = f" | reg={entry['regress_name']}"
+        print(
+            f"[{index}] {timestamp} | tag={entry['tag']} | ip={entry['ip']} | test={entry['test_name']}{reg_text}",
+            flush=True,
+        )
+
+
+def open_debug_entry(entries: list[dict], gtkwave_exe: str) -> None:
+    print_debug_entries(entries)
+    while True:
+        selection = input("select entry number to open with gtkwave (blank to cancel): ").strip()
+        if selection == "":
+            print("done debug canceled", flush=True)
+            return
+        if not selection.isdigit():
+            print("wait enter a valid number", flush=True)
+            continue
+        index = int(selection)
+        if index < 1 or index > len(entries):
+            print("wait enter a valid number", flush=True)
+            continue
+
+        selected = entries[index - 1]
+        wave_path = str(selected["wave_path"])
+        try:
+            subprocess.Popen(
+                [gtkwave_exe, wave_path],
+                cwd=REPO_ROOT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as error:
+            raise BuildError(f"failed to launch gtkwave: {error}") from error
+        print(f"done debug open={wave_path}", flush=True)
+        return
+
+
+def run_debug_mode(env_data: dict) -> None:
+    entries = discover_debug_entries()
+    if not entries:
+        raise BuildError("no saved waveform files found under workdir")
+
+    print("start debug", flush=True)
+    open_debug_entry(entries, env_data["gtkwave_exe"])
+
+
 def main() -> int:
     try:
         args = parse_args()
+        env_data = get_env_data()
+        if args.debug:
+            run_debug_mode(env_data)
+            return 0
+
         build_cfg = load_yaml(BUILD_CONFIG)
         require_keys(build_cfg, ["workflows", "steps"], str(BUILD_CONFIG))
         workflows = build_cfg["workflows"]
@@ -459,7 +570,7 @@ def main() -> int:
             raise BuildError(f"workflow '{workflow_name}' is not defined")
 
         context = get_ip_data(args.ip)
-        context.update(get_env_data())
+        context.update(env_data)
         context = apply_run_paths(context, resolve_tag(args.tag, context))
         regression_tests: list[str] = []
 
