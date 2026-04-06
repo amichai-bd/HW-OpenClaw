@@ -45,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
     parser.add_argument("-lint", action="store_true", help="run lint step")
+    parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", help="run a named test")
     parser.add_argument("-regress", help="run a named regression")
@@ -52,12 +53,12 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     requested_modes = sum(
-        [1 if args.lint else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
+        [1 if args.lint else 0, 1 if args.synth else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
     )
     if requested_modes != 1:
-        raise BuildError("select exactly one of -lint, -compile, -test, -regress, or -debug")
+        raise BuildError("select exactly one of -lint, -synth, -compile, -test, -regress, or -debug")
     if not args.debug and not args.ip:
-        raise BuildError("'-ip' is required for -lint, -compile, -test, or -regress")
+        raise BuildError("'-ip' is required for -lint, -synth, -compile, -test, or -regress")
     return args
 
 
@@ -98,6 +99,11 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_all_filelist",
             "lint_out_dir",
             "lint_log",
+            "synth_out_dir",
+            "synth_log",
+            "generated_synth_script",
+            "synth_json",
+            "synth_netlist",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -124,6 +130,7 @@ def get_ip_data(ip_name: str) -> dict:
         [
             "rtl_filelist",
             "rtl_module",
+            "synth_script",
             "dv_filelist",
             "all_filelist",
             "rtl_top",
@@ -145,6 +152,7 @@ def get_ip_data(ip_name: str) -> dict:
     ip_data["binary_name"] = ip_data["sim_binary"]
     ip_data["lint_source_dir"] = resolve_path(ip_data["lint_dir"])
     ip_data["lint_waiver"] = resolve_path(ip_data["lint_waiver"])
+    ip_data["synth_script"] = resolve_path(ip_data["synth_script"])
     ip_data["test_name"] = ""
     ip_data["regress_name"] = ""
     return ip_data
@@ -161,10 +169,11 @@ def get_env_data() -> dict:
     tools = env["tools"]
     if not isinstance(tools, dict):
         raise BuildError(f"'tools' must be a mapping in {ENV_CONFIG}")
-    require_keys(tools, ["python3", "verilator", "gtkwave"], "environment.tools")
+    require_keys(tools, ["python3", "verilator", "gtkwave", "yosys"], "environment.tools")
     require_keys(tools["verilator"], ["exe", "version", "version_cmd", "trace_flag"], "environment.tools.verilator")
     require_keys(tools["python3"], ["exe", "version", "version_cmd"], "environment.tools.python3")
     require_keys(tools["gtkwave"], ["exe", "version", "version_cmd"], "environment.tools.gtkwave")
+    require_keys(tools["yosys"], ["exe", "version", "version_cmd"], "environment.tools.yosys")
 
     simulation = env["simulation"]
     if not isinstance(simulation, dict):
@@ -188,6 +197,8 @@ def get_env_data() -> dict:
         "verilator_trace_flag": tools["verilator"]["trace_flag"] if waveform["enabled"] else "",
         "gtkwave_exe": tools["gtkwave"]["exe"],
         "gtkwave_version": tools["gtkwave"]["version"],
+        "yosys_exe": tools["yosys"]["exe"],
+        "yosys_version": tools["yosys"]["version"],
         "waveform_enabled": bool(waveform["enabled"]),
         "waveform_format": waveform["format"],
     }
@@ -213,11 +224,18 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
         apply_template(layout["generated_all_filelist"], ip_data)
     )
     ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
+    ip_data["synth_out_dir"] = resolve_path(apply_template(layout["synth_out_dir"], ip_data))
+    ip_data["generated_synth_script"] = resolve_path(
+        apply_template(layout["generated_synth_script"], ip_data)
+    )
+    ip_data["synth_json"] = resolve_path(apply_template(layout["synth_json"], ip_data))
+    ip_data["synth_netlist"] = resolve_path(apply_template(layout["synth_netlist"], ip_data))
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
     ip_data["log_file"] = resolve_path(apply_template(layout["compile_log"], ip_data))
     ip_data["lint_log"] = resolve_path(apply_template(layout["lint_log"], ip_data))
+    ip_data["synth_log"] = resolve_path(apply_template(layout["synth_log"], ip_data))
     ip_data["tracker_path"] = ""
     return ip_data
 
@@ -290,6 +308,8 @@ def resolve_workflow_name(args: argparse.Namespace) -> str:
         return "debug"
     if args.lint:
         return "lint"
+    if args.synth:
+        return "synth"
     if args.compile:
         return "compile"
     if args.test:
@@ -350,10 +370,42 @@ def prepare_filelists(context: dict) -> None:
     write_generated_filelist(context["all_filelist"], context["generated_all_filelist"], context)
 
 
+def build_yosys_read_verilog_args(filelist_path: str) -> str:
+    args: list[str] = []
+    for raw_line in Path(filelist_path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("+incdir+"):
+            include_path = line[len("+incdir+") :].strip()
+            args.extend(["-I", include_path])
+            continue
+        args.append(line)
+    return " ".join(args)
+
+
+def prepare_synth_script(context: dict) -> None:
+    source_path = Path(context["synth_script"])
+    if not source_path.is_file():
+        raise BuildError(f"missing synth script: {source_path}")
+    destination_path = Path(context["generated_synth_script"])
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    synth_context = dict(context)
+    synth_context["yosys_read_verilog_args"] = build_yosys_read_verilog_args(
+        context["generated_rtl_filelist"]
+    )
+    rendered = source_path.read_text(encoding="utf-8").format(**synth_context)
+    destination_path.write_text(rendered + "\n", encoding="utf-8")
+
+
 def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         print("wait prepare_filelists", flush=True)
         prepare_filelists(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
+        print("wait prepare_synth_script", flush=True)
+        prepare_synth_script(context)
         return
 
     command_text, log_name = normalize_command(command)
@@ -596,6 +648,11 @@ def main() -> int:
                 raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
             context["run_dir"] = context["lint_out_dir"]
             context["log_file"] = context["lint_log"]
+        elif args.synth:
+            if not Path(context["synth_script"]).is_file():
+                raise BuildError(f"missing synth script: {context['synth_script']}")
+            context["run_dir"] = context["synth_out_dir"]
+            context["log_file"] = context["synth_log"]
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 

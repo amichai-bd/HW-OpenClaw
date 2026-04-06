@@ -35,6 +35,8 @@ exports = {
     "VERILATOR_TRACE_FLAG": tools["verilator"]["trace_flag"],
     "GTKWAVE_EXE": tools["gtkwave"]["exe"],
     "GTKWAVE_VERSION": tools["gtkwave"]["version"],
+    "YOSYS_EXE": tools["yosys"]["exe"],
+    "YOSYS_VERSION": tools["yosys"]["version"],
     "WAVEFORM_ENABLED": "1" if wave["enabled"] else "0",
     "WAVEFORM_FORMAT": wave["format"],
 }
