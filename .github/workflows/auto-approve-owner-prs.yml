@@ -1,0 +1,46 @@
+name: auto-approve-owner-prs
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    if: github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: approve owner pull request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              { owner, repo, pull_number }
+            );
+
+            const botApproved = reviews.some((review) =>
+              review.user?.login === "github-actions[bot]" &&
+              review.state === "APPROVED"
+            );
+
+            if (botApproved) {
+              core.info("github-actions[bot] already approved this pull request");
+              return;
+            }
+
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number,
+              event: "APPROVE",
+              body: "Automatically approved for the repository owner by github-actions[bot].",
+            });
