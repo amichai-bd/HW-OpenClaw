@@ -42,6 +42,7 @@
 │   └── rtl/
 │       └── <ip>/
 │           ├── code/
+│           ├── lint/
 │           └── filelist_rtl_<ip>.f
 ├── tools/
 └── workdir/
@@ -66,6 +67,7 @@
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
+- RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
 
 ## Standard DV layout
 
@@ -108,4 +110,5 @@ src/dv/<ip>/
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
+- The standard builder flows include `build -ip <ip> -lint`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.

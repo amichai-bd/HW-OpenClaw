@@ -26,6 +26,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 │   └── rtl/
 │       └── <ip>/
 │           ├── code/
+│           ├── lint/
 │           └── filelist_rtl_<ip>.f
 ├── tools/
 │   └── build/
@@ -55,6 +56,7 @@ Then invoke the builder through the standard repo launcher:
 
 ```sh
 build -ip fifo -compile
+build -ip fifo -lint
 build -ip fifo -test sanity
 build -ip fifo -regress level_0
 ```
@@ -70,9 +72,11 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 ## Current flow
 
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
+- RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Tests and regressions are selected from YAML definitions under `src/dv/<ip>/code/tests/` and `src/dv/<ip>/regressions/`.
 - Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
 - Test outputs include at least a simulation log, a tracker JSON file, and a VCD waveform when waveform dumping is enabled in the environment config.
+- Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
 
 ## Development workflow
 

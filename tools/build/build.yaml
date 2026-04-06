@@ -1,4 +1,6 @@
 workflows:
+  lint:
+    - lint
   compile:
     - compile
   test:
@@ -11,6 +13,13 @@ steps:
     deps: []
     commands:
       - action: prepare_filelists
+  lint:
+    deps:
+      - prepare
+    commands:
+      - cmd: mkdir -p {lint_out_dir}
+      - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
+        log: "{log_file}"
   compile:
     deps:
       - prepare

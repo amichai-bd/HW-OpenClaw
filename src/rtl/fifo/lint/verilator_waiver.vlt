@@ -1,0 +1,2 @@
+`verilator_config
+// Add fifo-specific Verilator waivers here when needed.
