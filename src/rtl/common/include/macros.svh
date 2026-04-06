@@ -1,5 +1,5 @@
-`ifndef FIFO_MACROS_SVH
-`define FIFO_MACROS_SVH
+`ifndef COMMON_MACROS_SVH
+`define COMMON_MACROS_SVH
 
 `define DFF(q, d) always_ff @(posedge clk) begin q <= d; end
 `define DFF_EN(q, d, en) always_ff @(posedge clk) begin if (en) q <= d; end

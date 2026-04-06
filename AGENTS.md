@@ -40,6 +40,8 @@
 │   │       ├── filelist/
 │   │       └── regressions/
 │   └── rtl/
+│       ├── common/
+│       │   └── include/
 │       └── <ip>/
 │           ├── code/
 │           ├── lint/
@@ -63,6 +65,7 @@
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
+- Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
