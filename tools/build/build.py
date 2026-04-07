@@ -101,6 +101,7 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_rtl_filelist",
             "generated_dv_filelist",
             "generated_all_filelist",
+            "generated_fv_filelist",
             "lint_out_dir",
             "lint_log",
             "fv_out_dir",
@@ -351,6 +352,9 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["generated_all_filelist"] = resolve_path(
         apply_template(layout["generated_all_filelist"], ip_data)
     )
+    ip_data["generated_fv_filelist"] = resolve_path(
+        apply_template(layout["generated_fv_filelist"], ip_data)
+    )
     ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
     ip_data["fv_out_dir"] = resolve_path(apply_template(layout["fv_out_dir"], ip_data))
     ip_data["fv_run_dir"] = resolve_path(apply_template(layout["fv_run_dir"], ip_data))
@@ -507,20 +511,32 @@ def prepare_filelists(context: dict) -> None:
     write_generated_filelist(context["rtl_filelist"], context["generated_rtl_filelist"], context)
     write_generated_filelist(context["dv_filelist"], context["generated_dv_filelist"], context)
     write_generated_filelist(context["all_filelist"], context["generated_all_filelist"], context)
+    if "fv_filelist" in context:
+        write_generated_filelist(
+            context["fv_filelist"],
+            context["generated_fv_filelist"],
+            context,
+        )
 
 
 def build_yosys_read_verilog_args(filelist_path: str) -> str:
-    args: list[str] = []
-    for raw_line in Path(filelist_path).read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if line.startswith("+incdir+"):
-            include_path = line[len("+incdir+") :].strip()
-            args.extend(["-I", include_path])
-            continue
-        args.append(line)
-    return " ".join(args)
+    return build_yosys_read_verilog_args_multi([filelist_path])
+
+
+def build_yosys_read_verilog_args_multi(filelist_paths: list[str]) -> str:
+    include_args: list[str] = []
+    source_args: list[str] = []
+    for filelist_path in filelist_paths:
+        for raw_line in Path(filelist_path).read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith("+incdir+"):
+                include_path = line[len("+incdir+") :].strip()
+                include_args.extend(["-I", include_path])
+                continue
+            source_args.append(line)
+    return " ".join(include_args + source_args)
 
 
 def prepare_synth_script(context: dict) -> None:
@@ -537,8 +553,14 @@ def prepare_synth_script(context: dict) -> None:
     destination_path.write_text(rendered + "\n", encoding="utf-8")
 
 
-def build_fv_source_args(fv_sources: list[str]) -> str:
-    return " ".join(resolve_path(source) for source in fv_sources)
+def list_filelist_sources(filelist_path: str) -> list[str]:
+    sources: list[str] = []
+    for raw_line in Path(filelist_path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("+incdir+"):
+            continue
+        sources.append(line)
+    return sources
 
 
 def prepare_fv_config(context: dict) -> None:
@@ -548,10 +570,9 @@ def prepare_fv_config(context: dict) -> None:
     destination_path = Path(context["generated_fv_config"])
     destination_path.parent.mkdir(parents=True, exist_ok=True)
     fv_context = dict(context)
-    fv_context["yosys_read_verilog_args"] = build_yosys_read_verilog_args(
-        context["generated_rtl_filelist"]
+    fv_context["yosys_read_verilog_args"] = build_yosys_read_verilog_args_multi(
+        [context["generated_rtl_filelist"], context["generated_fv_filelist"]]
     )
-    fv_context["fv_source_args"] = build_fv_source_args(context["fv_sources"])
     fv_context["fv_multiclock_option"] = "multiclock on" if context["fv_multiclock"] else ""
     rendered = source_path.read_text(encoding="utf-8").format(**fv_context)
     destination_path.write_text(rendered + "\n", encoding="utf-8")
@@ -734,12 +755,16 @@ def prepare_fv_summary(context: dict) -> None:
             },
             "artifacts": {
                 "config": relativize_path(context["generated_fv_config"]),
+                "generated_filelist": relativize_path(context["generated_fv_filelist"]),
                 "log": relativize_path(context["fv_log"]),
                 "run_dir": relativize_path(context["fv_run_dir"]),
                 "status": relativize_path(str(status_path)),
                 "trace_vcds": trace_vcds,
             },
-            "sources": [relativize_path(resolve_path(source)) for source in context["fv_sources"]],
+            "sources": [
+                relativize_path(source)
+                for source in list_filelist_sources(context["generated_fv_filelist"])
+            ],
         }
     }
     summary_path = Path(context["fv_summary_yaml"])
@@ -1010,7 +1035,7 @@ def main() -> int:
         elif args.synth:
             required_tool_names = {"yosys"}
         elif args.fv:
-            require_keys(context, ["fv_profile", "fv_top", "fv_sources"], f"ip.{context['ip']}")
+            require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
             required_tool_names = {"sby", "yosys", fv_profile["fv_solver"]}
         else:
@@ -1035,10 +1060,12 @@ def main() -> int:
             if fv_profile is None:
                 raise BuildError("internal error: missing fv profile")
             context.update(fv_profile)
-            if not isinstance(context["fv_sources"], list) or not context["fv_sources"]:
-                raise BuildError(f"'fv_sources' must be a non-empty list in ip.{context['ip']}")
+            if not isinstance(context["fv_filelist"], str) or not context["fv_filelist"]:
+                raise BuildError(f"'fv_filelist' must be a non-empty string in ip.{context['ip']}")
             if not Path(context["fv_script_template"]).is_file():
                 raise BuildError(f"missing fv script template: {context['fv_script_template']}")
+            if not (REPO_ROOT / context["fv_filelist"]).is_file():
+                raise BuildError(f"missing fv filelist: {REPO_ROOT / context['fv_filelist']}")
             if not Path(context["sby_exe"]).is_file():
                 raise BuildError(f"missing sby executable: {context['sby_exe']}")
             solver_exe, solver_version = resolve_fv_solver(context)

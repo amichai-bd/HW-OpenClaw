@@ -7,6 +7,7 @@ output_layout:
   generated_rtl_filelist: workdir/{tag}/{ip}/filelist/filelist_rtl_{ip}.f
   generated_dv_filelist: workdir/{tag}/{ip}/filelist/filelist_dv_{ip}.f
   generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
+  generated_fv_filelist: workdir/{tag}/{ip}/filelist/filelist_fv_{ip}.f
   lint_out_dir: workdir/{tag}/{ip}/lint/
   lint_log: workdir/{tag}/{ip}/lint/lint.log
   fv_out_dir: workdir/{tag}/{ip}/fv/
@@ -41,11 +42,7 @@ ip:
     rtl_module: fifo
     fv_profile: bounded_safety
     fv_top: fifo_prove
-    fv_sources:
-      - src/fv/common/assumptions/fv_reset_ctrl.sv
-      - src/fv/fifo/code/fifo_fv_env.sv
-      - src/fv/fifo/properties/fifo_properties.sv
-      - src/fv/fifo/proofs/fifo_prove.sv
+    fv_filelist: src/fv/fifo/filelist_fv_fifo.f
     synth_profile: generic_cmos
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
@@ -63,11 +60,7 @@ ip:
     rtl_module: counter
     fv_profile: basic_prove
     fv_top: counter_prove
-    fv_sources:
-      - src/fv/common/assumptions/fv_reset_ctrl.sv
-      - src/fv/counter/code/counter_fv_env.sv
-      - src/fv/counter/properties/counter_properties.sv
-      - src/fv/counter/proofs/counter_prove.sv
+    fv_filelist: src/fv/counter/filelist_fv_counter.f
     synth_profile: generic_cmos
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f

@@ -88,7 +88,9 @@
 - Formal-specific collateral should live under `src/fv/`, not under `rtl/`, `dv/`, or `syn/`.
 - Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
 - Formal collateral for each IP should follow the split `code/`, `properties/`, and `proofs/`, with shared assumptions and scripts under `src/fv/common/`.
+- Formal collateral should use per-IP formal filelists, following the same repository pattern as RTL and DV, instead of enumerating `.sv` sources inline in `cfg/ip.yaml`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
+- Cross-IP composition is allowed when architecturally intentional. Reusable generic building blocks should move to `common/`, while larger IPs may explicitly integrate smaller IPs through declared filelists and config rather than ad hoc dependency on a neighbor IP’s local collateral.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
 - Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
 - IP-level formal selection should live in `cfg/ip.yaml`, while reusable formal profiles and solver metadata should live in `cfg/fv.yaml`.

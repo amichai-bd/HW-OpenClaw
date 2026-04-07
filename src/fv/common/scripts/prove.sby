@@ -8,5 +8,5 @@ expect {fv_expect}
 {fv_engine} {fv_solver}
 
 [script]
-read -formal {yosys_read_verilog_args} {fv_source_args}
+read -formal {yosys_read_verilog_args}
 prep -top {fv_top}
