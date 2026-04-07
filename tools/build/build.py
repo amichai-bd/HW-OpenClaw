@@ -852,6 +852,10 @@ def get_review_files(subject: str, context: dict) -> list[str]:
     return [path for path in paths if isinstance(path, str) and path]
 
 
+def step_subject(step_name: str, context: dict) -> str:
+    return f"{step_name} {context['ip']}"
+
+
 def prepare_synth_summary(context: dict) -> None:
     stat_path = Path(context["synth_stat_json"])
     area_path = Path(context["synth_area_report"])
@@ -1049,26 +1053,27 @@ def run_step(
         raise BuildError(f"unknown build step '{step_name}'")
 
     step_cfg = steps_cfg[step_name]
-    print_status_line("wait", step_name)
+    subject = step_subject(step_name, context)
+    print_status_line("wait", subject)
     for dependency in get_step_dependencies(step_name, steps_cfg):
         run_step(dependency, steps_cfg, context, completed)
 
     start_time = monotonic()
-    print_status_line("start", step_name)
+    print_status_line("start", subject)
     try:
         for command in step_cfg.get("commands", []):
             run_command(command, context)
     except BuildError:
-        print_status_line("done-fail", step_name, duration=duration_text(start_time))
+        print_status_line("done-fail", subject, duration=duration_text(start_time))
         print_review_files(get_review_files(step_name, context))
         raise
-    print_status_line("done-pass", step_name, duration=duration_text(start_time))
+    print_status_line("done-pass", subject, duration=duration_text(start_time))
     print_review_files(get_review_files(step_name, context))
     completed.add(step_name)
 
 
 def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None:
-    regress_subject = f"regress {base_context['regress_name']}"
+    regress_subject = f"regress {base_context['regress_name']} {base_context['ip']}"
     print_status_line("wait", regress_subject)
     start_time = monotonic()
     print_status_line("start", regress_subject)
@@ -1082,7 +1087,7 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
     for test_name in tests:
         test_context = dict(base_context)
         test_context = get_test_data(test_context, test_name, "regress")
-        test_subject = f"test {test_name}"
+        test_subject = f"test {test_name} {base_context['ip']}"
         print_status_line("wait", test_subject)
         test_context["status_subject"] = test_subject
         test_context["start_time"] = monotonic()
