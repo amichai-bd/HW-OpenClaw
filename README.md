@@ -100,6 +100,14 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 
 The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
 
+## CI
+
+- GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
+- The main CI gate lives in [.github/workflows/ci.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/ci.yml).
+- The current gate runs, per IP, `-lint -fv -synth -regress level_2` on `ubuntu-latest`.
+- The workflow installs the required open-source tools on the runner, sources `. cfg/env.sh`, and uploads the structured `workdir/` outputs as artifacts.
+- GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
+
 ## Current flow
 
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.

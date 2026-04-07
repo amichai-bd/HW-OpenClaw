@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -41,6 +43,26 @@ def require_keys(data: dict, required_keys: list[str], context: str) -> None:
     for key in required_keys:
         if key not in data:
             raise BuildError(f"missing '{key}' in {context}")
+
+
+def lookup(mapping: dict, dotted_key: str):
+    value = mapping
+    for part in dotted_key.split("."):
+        if not isinstance(value, dict) or part not in value:
+            raise BuildError(f"missing '{dotted_key}' in environment context")
+        value = value[part]
+    return value
+
+
+def resolve_template_text(text: str, mapping: dict) -> str:
+    def replace(match):
+        key = match.group(1)
+        value = lookup(mapping, key)
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    return re.sub(r"\{([^{}]+)\}", replace, text)
 
 
 def parse_args() -> argparse.Namespace:
@@ -273,7 +295,7 @@ def get_env_data(required_tool_names: set[str]) -> dict:
     if not isinstance(env, dict):
         raise BuildError(f"'environment' must be a mapping in {ENV_CONFIG}")
 
-    require_keys(env, ["model_root", "tools", "simulation"], "environment")
+    require_keys(env, ["home_dir", "model_root", "tools", "simulation"], "environment")
     tools = env["tools"]
     if not isinstance(tools, dict):
         raise BuildError(f"'tools' must be a mapping in {ENV_CONFIG}")
@@ -313,35 +335,42 @@ def get_env_data(required_tool_names: set[str]) -> dict:
         "environment.simulation.waveform",
     )
 
+    env_context = dict(env)
+    env_context["repo_root"] = str(REPO_ROOT)
+    env_context["host_home"] = os.environ.get("HOME", str(Path.home()))
+    env_context["home_dir"] = resolve_template_text(str(env["home_dir"]), env_context)
+    env_context["model_root"] = resolve_template_text(str(env["model_root"]), env_context)
+    env_context["bin_dir"] = resolve_template_text(str(env["bin_dir"]), env_context)
+
     env_data = {
-        "model_root": env["model_root"].format(repo_root=str(REPO_ROOT)),
+        "model_root": env_context["model_root"],
         "waveform_enabled": bool(waveform["enabled"]),
         "waveform_format": waveform["format"],
     }
     if "python3" in tools:
-        env_data["python3_exe"] = tools["python3"]["exe"]
-        env_data["python3_version"] = tools["python3"]["version"]
+        env_data["python3_exe"] = resolve_template_text(str(tools["python3"]["exe"]), env_context)
+        env_data["python3_version"] = resolve_template_text(str(tools["python3"]["version"]), env_context)
     if "verilator" in tools:
-        env_data["verilator_exe"] = tools["verilator"]["exe"]
-        env_data["verilator_version"] = tools["verilator"]["version"]
+        env_data["verilator_exe"] = resolve_template_text(str(tools["verilator"]["exe"]), env_context)
+        env_data["verilator_version"] = resolve_template_text(str(tools["verilator"]["version"]), env_context)
         env_data["verilator_trace_flag"] = (
-            tools["verilator"]["trace_flag"] if waveform["enabled"] else ""
+            resolve_template_text(str(tools["verilator"]["trace_flag"]), env_context) if waveform["enabled"] else ""
         )
     if "gtkwave" in tools:
-        env_data["gtkwave_exe"] = tools["gtkwave"]["exe"]
-        env_data["gtkwave_version"] = tools["gtkwave"]["version"]
+        env_data["gtkwave_exe"] = resolve_template_text(str(tools["gtkwave"]["exe"]), env_context)
+        env_data["gtkwave_version"] = resolve_template_text(str(tools["gtkwave"]["version"]), env_context)
     if "yosys" in tools:
-        env_data["yosys_exe"] = tools["yosys"]["exe"]
-        env_data["yosys_version"] = tools["yosys"]["version"]
+        env_data["yosys_exe"] = resolve_template_text(str(tools["yosys"]["exe"]), env_context)
+        env_data["yosys_version"] = resolve_template_text(str(tools["yosys"]["version"]), env_context)
     if "sby" in tools:
-        env_data["sby_exe"] = tools["sby"]["exe"]
-        env_data["sby_version"] = tools["sby"]["version"]
+        env_data["sby_exe"] = resolve_template_text(str(tools["sby"]["exe"]), env_context)
+        env_data["sby_version"] = resolve_template_text(str(tools["sby"]["version"]), env_context)
     if "boolector" in tools:
-        env_data["boolector_exe"] = tools["boolector"]["exe"]
-        env_data["boolector_version"] = tools["boolector"]["version"]
+        env_data["boolector_exe"] = resolve_template_text(str(tools["boolector"]["exe"]), env_context)
+        env_data["boolector_version"] = resolve_template_text(str(tools["boolector"]["version"]), env_context)
     if "z3" in tools:
-        env_data["z3_exe"] = tools["z3"]["exe"]
-        env_data["z3_version"] = tools["z3"]["version"]
+        env_data["z3_exe"] = resolve_template_text(str(tools["z3"]["exe"]), env_context)
+        env_data["z3_version"] = resolve_template_text(str(tools["z3"]["version"]), env_context)
     return env_data
 
 

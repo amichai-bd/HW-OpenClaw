@@ -24,6 +24,7 @@ env_yaml = Path(os.environ["ENV_YAML"])
 data = yaml.safe_load(env_yaml.read_text(encoding="utf-8"))
 env = data["environment"]
 shell_cfg = env["shell"]
+host_home = os.environ.get("HOME", "")
 
 def lookup(mapping, dotted_key):
     value = mapping
@@ -47,8 +48,24 @@ def resolve_template(text, mapping):
 
 context = dict(env)
 context["repo_root"] = repo_root
+context["host_home"] = host_home
+context["home_dir"] = resolve_template(str(env["home_dir"]), context)
 context["model_root"] = resolve_template(str(env["model_root"]), context)
 context["bin_dir"] = resolve_template(str(env["bin_dir"]), context)
+
+tools_cfg = env.get("tools", {})
+resolved_tools = {}
+for tool_name, tool_cfg in tools_cfg.items():
+    if not isinstance(tool_cfg, dict):
+        raise TypeError(f"environment.tools.{tool_name} must be a mapping")
+    resolved_tool = {}
+    for key, value in tool_cfg.items():
+        if isinstance(value, str):
+            resolved_tool[key] = resolve_template(value, context)
+        else:
+            resolved_tool[key] = value
+    resolved_tools[tool_name] = resolved_tool
+context["tools"] = resolved_tools
 
 exports_cfg = shell_cfg["exports"]
 path_prepend_cfg = shell_cfg.get("path_prepend", [])
