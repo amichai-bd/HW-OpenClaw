@@ -10,8 +10,10 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
+from time import monotonic
 
 import yaml
 
@@ -26,6 +28,9 @@ FV_CONFIG = REPO_ROOT / "cfg" / "fv.yaml"
 
 class BuildError(RuntimeError):
     """Raised when build setup or execution fails."""
+
+
+PRINT_LOCK = threading.Lock()
 
 
 def load_yaml(path: Path) -> dict:
@@ -769,6 +774,84 @@ def relativize_path(path_text: str) -> str:
     return str(Path(path_text).resolve().relative_to(REPO_ROOT))
 
 
+def display_path(path_text: str) -> str:
+    try:
+        return relativize_path(path_text)
+    except ValueError:
+        return str(Path(path_text).resolve())
+
+
+def timestamp_text() -> str:
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def duration_text(start_time: float) -> str:
+    return f"+{(monotonic() - start_time):.1f}s"
+
+
+def print_status_line(kind: str, subject: str, *, duration: str | None = None) -> None:
+    text = f"[{kind} {timestamp_text()}] {subject}"
+    if duration:
+        text += f" {duration}"
+    with PRINT_LOCK:
+        print(text, flush=True)
+
+
+def print_review_files(paths: list[str]) -> None:
+    with PRINT_LOCK:
+        for index, path_text in enumerate(paths[:3], start=1):
+            print(f"  file{index}={display_path(path_text)}", flush=True)
+
+
+def get_review_files(subject: str, context: dict) -> list[str]:
+    if subject == "prepare":
+        paths = [
+            context.get("generated_all_filelist"),
+            context.get("generated_rtl_filelist"),
+            context.get("generated_fv_filelist"),
+        ]
+    elif subject == "lint":
+        paths = [context.get("lint_log")]
+    elif subject == "fv":
+        paths = [
+            context.get("fv_log"),
+            context.get("fv_summary_yaml"),
+            str(Path(context["fv_run_dir"]) / "status") if context.get("fv_run_dir") else None,
+        ]
+    elif subject == "synth":
+        paths = [
+            context.get("synth_log"),
+            context.get("synth_summary_yaml"),
+            context.get("synth_netlist"),
+        ]
+    elif subject == "compile":
+        paths = [context.get("log_file"), context.get("binary_path")]
+    elif subject == "simulate":
+        paths = [
+            context.get("log_file"),
+            context.get("tracker_path"),
+            context.get("wave_path"),
+        ]
+    elif subject.startswith("test "):
+        paths = [
+            context.get("log_file"),
+            context.get("tracker_path"),
+            context.get("wave_path"),
+        ]
+    elif subject.startswith("regress "):
+        regress_root = None
+        if context.get("ip_root") and context.get("regress_name"):
+            regress_root = str(Path(context["ip_root"]) / "regressions" / context["regress_name"])
+        paths = [regress_root or context.get("ip_root")]
+    elif subject.startswith("workflow "):
+        paths = [context.get("ip_root")]
+    elif subject == "debug":
+        paths = []
+    else:
+        paths = [context.get("log_file"), context.get("run_dir")]
+    return [path for path in paths if isinstance(path, str) and path]
+
+
 def prepare_synth_summary(context: dict) -> None:
     stat_path = Path(context["synth_stat_json"])
     area_path = Path(context["synth_area_report"])
@@ -914,29 +997,23 @@ def resolve_fv_solver(context: dict) -> tuple[str, str]:
 
 def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
-        print("wait prepare_filelists", flush=True)
         prepare_filelists(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
-        print("wait prepare_synth_script", flush=True)
         prepare_synth_script(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_fv_config":
-        print("wait prepare_fv_config", flush=True)
         prepare_fv_config(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_fv_summary":
-        print("wait prepare_fv_summary", flush=True)
         prepare_fv_summary(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_summary":
-        print("wait prepare_synth_summary", flush=True)
         prepare_synth_summary(context)
         return
 
     command_text, log_name = normalize_command(command)
     formatted = format_text(command_text, context)
-    print(f"wait {formatted}", flush=True)
     result = subprocess.run(
         formatted,
         shell=True,
@@ -972,20 +1049,32 @@ def run_step(
         raise BuildError(f"unknown build step '{step_name}'")
 
     step_cfg = steps_cfg[step_name]
+    print_status_line("wait", step_name)
     for dependency in get_step_dependencies(step_name, steps_cfg):
         run_step(dependency, steps_cfg, context, completed)
 
-    print(f"start {step_name}", flush=True)
-    for command in step_cfg.get("commands", []):
-        run_command(command, context)
-    print(f"done {step_name}", flush=True)
+    start_time = monotonic()
+    print_status_line("start", step_name)
+    try:
+        for command in step_cfg.get("commands", []):
+            run_command(command, context)
+    except BuildError:
+        print_status_line("done-fail", step_name, duration=duration_text(start_time))
+        print_review_files(get_review_files(step_name, context))
+        raise
+    print_status_line("done-pass", step_name, duration=duration_text(start_time))
+    print_review_files(get_review_files(step_name, context))
     completed.add(step_name)
 
 
 def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None:
-    print(f"start regress ({base_context['regress_name']})", flush=True)
+    regress_subject = f"regress {base_context['regress_name']}"
+    print_status_line("wait", regress_subject)
+    start_time = monotonic()
+    print_status_line("start", regress_subject)
     if not tests:
-        print(f"done regress ({base_context['regress_name']})", flush=True)
+        print_status_line("done-pass", regress_subject, duration=duration_text(start_time))
+        print_review_files(get_review_files(regress_subject, base_context))
         return
 
     processes: list[tuple[str, dict, subprocess.Popen[str]]] = []
@@ -993,13 +1082,16 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
     for test_name in tests:
         test_context = dict(base_context)
         test_context = get_test_data(test_context, test_name, "regress")
-        print(f"start test {test_name}", flush=True)
+        test_subject = f"test {test_name}"
+        print_status_line("wait", test_subject)
+        test_context["status_subject"] = test_subject
+        test_context["start_time"] = monotonic()
+        print_status_line("start", test_subject)
         command_parts = []
         for command in step_cfg.get("commands", []):
             command_text, _ = normalize_command(command)
             command_parts.append(format_text(command_text, test_context))
         formatted = " && ".join(command_parts)
-        print(f"wait {formatted}", flush=True)
         process = subprocess.Popen(
             formatted,
             shell=True,
@@ -1026,15 +1118,21 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
             if stderr:
                 error_messages.append(stderr)
             error_messages.append(f"test '{test_name}' failed with exit code {process.returncode}")
+            print_status_line("done-fail", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
+            print_review_files(get_review_files(test_context["status_subject"], test_context))
         else:
-            print(f"done test {test_name}", flush=True)
+            print_status_line("done-pass", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
+            print_review_files(get_review_files(test_context["status_subject"], test_context))
 
     if error_messages:
         for message in error_messages:
             print(message, end="" if message.endswith("\n") else "\n", file=sys.stderr)
+        print_status_line("done-fail", regress_subject, duration=duration_text(start_time))
+        print_review_files(get_review_files(regress_subject, base_context))
         raise BuildError("regression failed")
 
-    print(f"done regress ({base_context['regress_name']})", flush=True)
+    print_status_line("done-pass", regress_subject, duration=duration_text(start_time))
+    print_review_files(get_review_files(regress_subject, base_context))
 
 
 def parse_debug_entry(wave_path: Path) -> dict | None:
@@ -1101,17 +1199,16 @@ def print_debug_entries(entries: list[dict]) -> None:
 
 def open_debug_entry(entries: list[dict], gtkwave_exe: str) -> None:
     print_debug_entries(entries)
+    start_time = monotonic()
     while True:
         selection = input("select entry number to open with gtkwave (blank to cancel): ").strip()
         if selection == "":
-            print("done debug canceled", flush=True)
+            print_status_line("done-pass", "debug", duration=duration_text(start_time))
             return
         if not selection.isdigit():
-            print("wait enter a valid number", flush=True)
             continue
         index = int(selection)
         if index < 1 or index > len(entries):
-            print("wait enter a valid number", flush=True)
             continue
 
         selected = entries[index - 1]
@@ -1125,7 +1222,8 @@ def open_debug_entry(entries: list[dict], gtkwave_exe: str) -> None:
             )
         except OSError as error:
             raise BuildError(f"failed to launch gtkwave: {error}") from error
-        print(f"done debug open={wave_path}", flush=True)
+        print_status_line("done-pass", "debug", duration=duration_text(start_time))
+        print_review_files([wave_path])
         return
 
 
@@ -1134,7 +1232,8 @@ def run_debug_mode(env_data: dict) -> None:
     if not entries:
         raise BuildError("no saved waveform files found under workdir")
 
-    print("start debug", flush=True)
+    print_status_line("wait", "debug")
+    print_status_line("start", "debug")
     open_debug_entry(entries, env_data["gtkwave_exe"])
 
 
@@ -1247,11 +1346,11 @@ def main() -> int:
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 
+        workflow_subject = f"workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}"
+        workflow_start = monotonic()
         completed: set[str] = set()
-        print(
-            f"start workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
-            flush=True,
-        )
+        print_status_line("wait", workflow_subject)
+        print_status_line("start", workflow_subject)
         run_step("prepare", steps_cfg, context, completed)
 
         workflow_dependencies, workflow_closures = collect_workflow_dependencies(
@@ -1287,13 +1386,12 @@ def main() -> int:
                 workflow_futures[workflow_name] = executor.submit(execute_workflow, workflow_name)
             for workflow_name in requested_workflows:
                 workflow_futures[workflow_name].result()
-        print(
-            f"done workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
-            flush=True,
-        )
+        print_status_line("done-pass", workflow_subject, duration=duration_text(workflow_start))
+        print_review_files(get_review_files("workflow main", context))
         return 0
     except BuildError as error:
-        print(f"done error: {error}", file=sys.stderr)
+        with PRINT_LOCK:
+            print(f"[done-fail {timestamp_text()}] workflow {error}", file=sys.stderr, flush=True)
         return 1
 
 
