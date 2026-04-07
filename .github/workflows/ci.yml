@@ -16,33 +16,18 @@ permissions:
   contents: read
 
 jobs:
-  gate:
-    name: gate-${{ matrix.ip }}
+  gate-fifo:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ip: fifo
-            regress: level_2
-          - ip: counter
-            regress: level_2
     steps:
       - name: checkout
         uses: actions/checkout@v4
 
-      - name: install apt tools
+      - name: setup tools
         run: |
           sudo apt-get update
           sudo apt-get install -y verilator yosys boolector z3 python3-click
-
-      - name: install sby
-        run: |
           git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
           make -C /tmp/sby install PREFIX="$HOME/.local"
-
-      - name: show tool versions
-        run: |
           python3 --version
           verilator --version
           yosys -V
@@ -50,15 +35,47 @@ jobs:
           boolector --version
           z3 --version
 
-      - name: run builder gate
+      - name: run fifo gate
         run: |
           . cfg/env.sh
-          build -ip "${{ matrix.ip }}" -lint -fv -synth -regress "${{ matrix.regress }}" -tag "gh_${{ github.run_id }}_${{ matrix.ip }}"
+          build -ip fifo -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"
 
-      - name: upload workdir artifacts
+      - name: upload fifo artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: workdir-${{ matrix.ip }}
-          path: workdir/gh_${{ github.run_id }}_${{ matrix.ip }}/
+          name: workdir-fifo
+          path: workdir/gh_${{ github.run_id }}_fifo/
+          if-no-files-found: error
+
+  gate-counter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator yosys boolector z3 python3-click
+          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+          make -C /tmp/sby install PREFIX="$HOME/.local"
+          python3 --version
+          verilator --version
+          yosys -V
+          "$HOME/.local/bin/sby" --version
+          boolector --version
+          z3 --version
+
+      - name: run counter gate
+        run: |
+          . cfg/env.sh
+          build -ip counter -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_counter"
+
+      - name: upload counter artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workdir-counter
+          path: workdir/gh_${{ github.run_id }}_counter/
           if-no-files-found: error
