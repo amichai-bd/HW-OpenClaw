@@ -10,8 +10,10 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
+from time import monotonic
 
 import yaml
 
@@ -22,10 +24,14 @@ IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
 ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
 SYNTH_CONFIG = REPO_ROOT / "cfg" / "synth.yaml"
 FV_CONFIG = REPO_ROOT / "cfg" / "fv.yaml"
+INTERACTIVE_SELECT = "__interactive_select__"
 
 
 class BuildError(RuntimeError):
     """Raised when build setup or execution fails."""
+
+
+PRINT_LOCK = threading.Lock()
 
 
 def load_yaml(path: Path) -> dict:
@@ -74,8 +80,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
-    parser.add_argument("-test", help="run a named test")
-    parser.add_argument("-regress", help="run a named regression")
+    parser.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run a named test")
+    parser.add_argument("-regress", nargs="?", const=INTERACTIVE_SELECT, help="run a named regression")
     parser.add_argument("-debug", action="store_true", help="list saved waveforms and open one in gtkwave")
     args = parser.parse_args()
 
@@ -90,14 +96,10 @@ def parse_args() -> argparse.Namespace:
             1 if args.debug else 0,
         ]
     )
-    if requested_modes == 0:
-        raise BuildError("select at least one of -lint, -fv, -synth, -compile, -test, -regress, or -debug")
     if args.debug and requested_modes != 1:
         raise BuildError("'-debug' must be used by itself")
     if args.test and args.regress:
         raise BuildError("select only one of '-test' or '-regress'")
-    if not args.debug and not args.ip:
-        raise BuildError("'-ip' is required for -lint, -fv, -synth, -compile, -test, or -regress")
     return args
 
 
@@ -423,10 +425,155 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     return ip_data
 
 
+def get_available_ips() -> list[str]:
+    ip_root = load_yaml(IP_CONFIG)
+    require_keys(ip_root, ["ip"], str(IP_CONFIG))
+    ip_cfg = ip_root["ip"]
+    if not isinstance(ip_cfg, dict):
+        raise BuildError(f"'ip' must be a mapping in {IP_CONFIG}")
+    return sorted(ip_cfg.keys())
+
+
+def load_named_yaml_entries(directory: Path, top_key: str) -> list[str]:
+    if not directory.is_dir():
+        raise BuildError(f"missing directory: {directory}")
+    names: list[str] = []
+    for path in sorted(directory.glob("*.yaml")):
+        data = load_yaml(path)
+        if top_key not in data or not isinstance(data[top_key], dict):
+            continue
+        name = data[top_key].get("name")
+        if isinstance(name, str) and name:
+            names.append(name)
+    return names
+
+
+def get_available_tests(ip_data: dict) -> list[str]:
+    return load_named_yaml_entries(REPO_ROOT / ip_data["test_dir"], "test")
+
+
+def get_available_regressions(ip_data: dict) -> list[str]:
+    return load_named_yaml_entries(REPO_ROOT / ip_data["regression_dir"], "regression")
+
+
+def format_available_names(label: str, names: list[str]) -> str:
+    if not names:
+        return f"available {label}: none"
+    return f"available {label}: {', '.join(names)}"
+
+
+def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
+    if not names:
+        raise BuildError(f"no {kind}s are defined")
+    with PRINT_LOCK:
+        print(f"available {kind}s:", flush=True)
+        for index, name in enumerate(names, start=1):
+            print(f"  [{index}] {name}", flush=True)
+    while True:
+        selection = input(f"select {kind} number (0/q to cancel): ").strip()
+        if selection in {"0", "q", "Q", ""}:
+            return None
+        if not selection.isdigit():
+            with PRINT_LOCK:
+                print("enter a valid number", flush=True)
+            continue
+        index = int(selection)
+        if 1 <= index <= len(names):
+            return names[index - 1]
+        with PRINT_LOCK:
+            print("enter a valid number", flush=True)
+
+
+def prompt_for_modes() -> list[str] | None:
+    mode_items = [
+        ("lint", "-lint"),
+        ("fv", "-fv"),
+        ("synth", "-synth"),
+        ("compile", "-compile"),
+        ("test", "-test"),
+        ("regress", "-regress"),
+        ("debug", "-debug"),
+    ]
+    with PRINT_LOCK:
+        print("available modes:", flush=True)
+        for index, (name, flag) in enumerate(mode_items, start=1):
+            print(f"  [{index}] {name} ({flag})", flush=True)
+    while True:
+        selection = input("select mode numbers (comma-separated, 0/q to cancel): ").strip()
+        if selection in {"0", "q", "Q", ""}:
+            return None
+        parts = [part.strip() for part in selection.split(",") if part.strip()]
+        if not parts or not all(part.isdigit() for part in parts):
+            with PRINT_LOCK:
+                print("enter valid mode numbers", flush=True)
+            continue
+        indexes = [int(part) for part in parts]
+        if any(index < 1 or index > len(mode_items) for index in indexes):
+            with PRINT_LOCK:
+                print("enter valid mode numbers", flush=True)
+            continue
+        selected = [mode_items[index - 1][0] for index in indexes]
+        selected_set = set(selected)
+        if "debug" in selected_set and len(selected_set) != 1:
+            with PRINT_LOCK:
+                print("debug must be selected by itself", flush=True)
+            continue
+        if "test" in selected_set and "regress" in selected_set:
+            with PRINT_LOCK:
+                print("select only one of test or regress", flush=True)
+            continue
+        return selected
+
+
+def apply_selected_modes(args: argparse.Namespace, selected_modes: list[str]) -> None:
+    args.lint = "lint" in selected_modes
+    args.fv = "fv" in selected_modes
+    args.synth = "synth" in selected_modes
+    args.compile = "compile" in selected_modes
+    args.debug = "debug" in selected_modes
+    if "test" in selected_modes and not args.test:
+        args.test = INTERACTIVE_SELECT
+    if "regress" in selected_modes and not args.regress:
+        args.regress = INTERACTIVE_SELECT
+
+
+def get_requested_target_names(args: argparse.Namespace) -> list[str]:
+    return resolve_requested_targets(args)
+
+
+def get_requested_mode_names(args: argparse.Namespace) -> list[str]:
+    return get_requested_target_names(args)
+
+
+def build_resolved_command(args: argparse.Namespace) -> str:
+    parts = ["build"]
+    if args.ip:
+        parts.extend(["-ip", args.ip])
+    if args.tag:
+        parts.extend(["-tag", args.tag])
+    if args.lint:
+        parts.append("-lint")
+    if args.fv:
+        parts.append("-fv")
+    if args.synth:
+        parts.append("-synth")
+    if args.compile:
+        parts.append("-compile")
+    if args.test:
+        parts.extend(["-test", args.test])
+    if args.regress:
+        parts.extend(["-regress", args.regress])
+    if args.debug:
+        parts.append("-debug")
+    return " ".join(parts)
+
+
 def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
     test_file = REPO_ROOT / ip_data["test_dir"] / f"{test_name}.yaml"
     if not test_file.is_file():
-        raise BuildError(f"unknown test '{test_name}' for ip '{ip_data['ip']}'")
+        raise BuildError(
+            f"unknown test '{test_name}' for ip '{ip_data['ip']}' | {format_available_names('tests', get_available_tests(ip_data))}"
+        )
 
     test_data = load_yaml(test_file)
     require_keys(test_data, ["test"], str(test_file))
@@ -462,7 +609,7 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
     regression_file = REPO_ROOT / ip_data["regression_dir"] / f"{regression_name}.yaml"
     if not regression_file.is_file():
         raise BuildError(
-            f"unknown regression '{regression_name}' for ip '{ip_data['ip']}'"
+            f"unknown regression '{regression_name}' for ip '{ip_data['ip']}' | {format_available_names('regressions', get_available_regressions(ip_data))}"
         )
 
     regression_data = load_yaml(regression_file)
@@ -486,39 +633,43 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
     return list(tests)
 
 
-def resolve_requested_workflows(args: argparse.Namespace) -> list[str]:
-    workflows: list[str] = []
+def resolve_requested_targets(args: argparse.Namespace) -> list[str]:
+    targets: list[str] = []
     if args.debug:
         return ["debug"]
     if args.lint:
-        workflows.append("lint")
+        targets.append("lint")
     if args.fv:
-        workflows.append("fv")
+        targets.append("fv")
     if args.synth:
-        workflows.append("synth")
+        targets.append("synth")
     if args.compile:
-        workflows.append("compile")
+        targets.append("compile")
     if args.test:
-        workflows.append("test")
+        targets.append("test")
     if args.regress:
-        workflows.append("regress")
-    return workflows
+        targets.append("regress")
+    return targets
 
 
 def collect_required_tool_names(
-    requested_workflows: list[str],
+    requested_targets: list[str],
+    targets_cfg: dict,
     context: dict,
-    fv_profile: dict | None,
 ) -> set[str]:
     required_tool_names: set[str] = set()
-    if any(workflow in requested_workflows for workflow in ["lint", "compile", "test", "regress"]):
-        required_tool_names.add("verilator")
-    if "synth" in requested_workflows:
-        required_tool_names.add("yosys")
-    if "fv" in requested_workflows:
-        if fv_profile is None:
-            raise BuildError("internal error: missing fv profile")
-        required_tool_names.update({"sby", "yosys", fv_profile["fv_solver"]})
+    for target_name in requested_targets:
+        if target_name == "debug":
+            required_tool_names.add("gtkwave")
+            continue
+        target_cfg = targets_cfg[target_name]
+        tool_requirements = target_cfg.get("tool_requirements", [])
+        if not isinstance(tool_requirements, list):
+            raise BuildError(f"'tool_requirements' must be a list for target '{target_name}'")
+        for tool_name in tool_requirements:
+            if not isinstance(tool_name, str):
+                raise BuildError(f"tool requirement entries must be strings for target '{target_name}'")
+            required_tool_names.add(format_text(tool_name, context))
     return required_tool_names
 
 
@@ -567,40 +718,45 @@ def collect_step_closure(
     return closure
 
 
-def collect_workflow_step_closure(workflow_name: str, workflows: dict, steps_cfg: dict, memo: dict[str, set[str]]) -> set[str]:
+def collect_target_step_closure(target_name: str, targets_cfg: dict, steps_cfg: dict, memo: dict[str, set[str]]) -> set[str]:
     closure: set[str] = set()
-    for step_name in workflows[workflow_name]:
+    target_cfg = targets_cfg[target_name]
+    root_steps = target_cfg.get("root_steps", [])
+    if not isinstance(root_steps, list):
+        raise BuildError(f"'root_steps' must be a list for target '{target_name}'")
+    for step_name in root_steps:
         closure.update(collect_step_closure(step_name, steps_cfg, memo))
     return closure
 
 
-def collect_workflow_dependencies(requested_workflows: list[str], workflows: dict, steps_cfg: dict) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
-    step_to_workflow: dict[str, str] = {}
-    for workflow_name, workflow_steps in workflows.items():
-        if not isinstance(workflow_steps, list):
-            raise BuildError(f"workflow '{workflow_name}' must be a list of steps")
-        for step_name in workflow_steps:
-            if step_name in step_to_workflow and step_to_workflow[step_name] != workflow_name:
-                raise BuildError(f"step '{step_name}' is assigned to multiple workflows")
-            step_to_workflow[step_name] = workflow_name
+def collect_target_dependencies(requested_targets: list[str], targets_cfg: dict, steps_cfg: dict) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    step_to_target: dict[str, str] = {}
+    for target_name, target_cfg in targets_cfg.items():
+        root_steps = target_cfg.get("root_steps", [])
+        if not isinstance(root_steps, list):
+            raise BuildError(f"'root_steps' must be a list for target '{target_name}'")
+        for step_name in root_steps:
+            if step_name in step_to_target and step_to_target[step_name] != target_name:
+                raise BuildError(f"step '{step_name}' is assigned to multiple targets")
+            step_to_target[step_name] = target_name
 
     memo: dict[str, set[str]] = {}
-    workflow_closures = {
-        workflow_name: collect_workflow_step_closure(workflow_name, workflows, steps_cfg, memo)
-        for workflow_name in requested_workflows
+    target_closures = {
+        target_name: collect_target_step_closure(target_name, targets_cfg, steps_cfg, memo)
+        for target_name in requested_targets
     }
 
-    requested_set = set(requested_workflows)
-    workflow_dependencies: dict[str, set[str]] = {}
-    for workflow_name in requested_workflows:
+    requested_set = set(requested_targets)
+    target_dependencies: dict[str, set[str]] = {}
+    for target_name in requested_targets:
         dependencies: set[str] = set()
-        for step_name in workflows[workflow_name]:
+        for step_name in targets_cfg[target_name].get("root_steps", []):
             for dependency_step in collect_step_closure(step_name, steps_cfg, memo):
-                dependency_workflow = step_to_workflow.get(dependency_step)
-                if dependency_workflow and dependency_workflow != workflow_name and dependency_workflow in requested_set:
-                    dependencies.add(dependency_workflow)
-        workflow_dependencies[workflow_name] = dependencies
-    return workflow_dependencies, workflow_closures
+                dependency_target = step_to_target.get(dependency_step)
+                if dependency_target and dependency_target != target_name and dependency_target in requested_set:
+                    dependencies.add(dependency_target)
+        target_dependencies[target_name] = dependencies
+    return target_dependencies, target_closures
 
 
 def resolve_filelist_entry(entry: str, context: dict) -> str:
@@ -769,6 +925,80 @@ def relativize_path(path_text: str) -> str:
     return str(Path(path_text).resolve().relative_to(REPO_ROOT))
 
 
+def display_path(path_text: str) -> str:
+    try:
+        return relativize_path(path_text)
+    except ValueError:
+        return str(Path(path_text).resolve())
+
+
+def timestamp_text() -> str:
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def duration_text(start_time: float) -> str:
+    return f"+{(monotonic() - start_time):.1f}s"
+
+
+def print_status_line(kind: str, subject: str, *, duration: str | None = None) -> None:
+    text = f"[{kind} {timestamp_text()}] {subject}"
+    if duration:
+        text += f" {duration}"
+    with PRINT_LOCK:
+        print(text, flush=True)
+
+
+def print_review_files(paths: list[str]) -> None:
+    with PRINT_LOCK:
+        for index, path_text in enumerate(paths[:3], start=1):
+            print(f"  file{index}={display_path(path_text)}", flush=True)
+
+
+def render_value(template: str, context: dict) -> str:
+    if template.startswith("{") and template.endswith("}") and "." in template[1:-1]:
+        inner_key = template[1:-1]
+        value = lookup(context, inner_key)
+        if isinstance(value, str):
+            return format_text(value, context)
+        return str(value)
+    return format_text(template, context)
+
+
+def render_paths(templates: list[str], context: dict) -> list[str]:
+    paths: list[str] = []
+    for template in templates:
+        if not isinstance(template, str):
+            continue
+        rendered = render_value(template, context)
+        if rendered:
+            paths.append(rendered)
+    return paths
+
+
+def get_step_review_files(step_name: str, steps_cfg: dict, context: dict) -> list[str]:
+    step_cfg = steps_cfg.get(step_name, {})
+    review_files = step_cfg.get("review_files", [])
+    if not isinstance(review_files, list):
+        raise BuildError(f"'review_files' must be a list for step '{step_name}'")
+    return render_paths(review_files, context)
+
+
+def get_target_review_files(target_name: str, targets_cfg: dict, context: dict) -> list[str]:
+    target_cfg = targets_cfg.get(target_name, {})
+    review_files = target_cfg.get("review_files", [])
+    if not isinstance(review_files, list):
+        raise BuildError(f"'review_files' must be a list for target '{target_name}'")
+    return render_paths(review_files, context)
+
+
+def get_step_display_name(step_name: str, steps_cfg: dict, context: dict) -> str:
+    step_cfg = steps_cfg.get(step_name, {})
+    display_name = step_cfg.get("display_name")
+    if isinstance(display_name, str) and display_name:
+        return render_value(display_name, context)
+    return f"{step_name} {context['ip']}"
+
+
 def prepare_synth_summary(context: dict) -> None:
     stat_path = Path(context["synth_stat_json"])
     area_path = Path(context["synth_area_report"])
@@ -912,31 +1142,28 @@ def resolve_fv_solver(context: dict) -> tuple[str, str]:
     raise BuildError(f"unsupported fv solver '{solver}'")
 
 
-def run_command(command: str | dict, context: dict) -> None:
+def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
-        print("wait prepare_filelists", flush=True)
         prepare_filelists(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
-        print("wait prepare_synth_script", flush=True)
         prepare_synth_script(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_fv_config":
-        print("wait prepare_fv_config", flush=True)
         prepare_fv_config(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_fv_summary":
-        print("wait prepare_fv_summary", flush=True)
         prepare_fv_summary(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_summary":
-        print("wait prepare_synth_summary", flush=True)
         prepare_synth_summary(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "run_regression":
+        run_regression(steps_cfg["regress"], context, context.get("selected_tests", []), steps_cfg)
         return
 
     command_text, log_name = normalize_command(command)
     formatted = format_text(command_text, context)
-    print(f"wait {formatted}", flush=True)
     result = subprocess.run(
         formatted,
         shell=True,
@@ -945,7 +1172,7 @@ def run_command(command: str | dict, context: dict) -> None:
         capture_output=True,
     )
     if log_name:
-        log_path = Path(format_text(log_name, context))
+        log_path = Path(render_value(log_name, context))
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("w", encoding="utf-8") as handle:
             if result.stdout:
@@ -972,34 +1199,43 @@ def run_step(
         raise BuildError(f"unknown build step '{step_name}'")
 
     step_cfg = steps_cfg[step_name]
+    subject = get_step_display_name(step_name, steps_cfg, context)
     for dependency in get_step_dependencies(step_name, steps_cfg):
         run_step(dependency, steps_cfg, context, completed)
 
-    print(f"start {step_name}", flush=True)
-    for command in step_cfg.get("commands", []):
-        run_command(command, context)
-    print(f"done {step_name}", flush=True)
+    start_time = monotonic()
+    print_status_line("start", subject)
+    try:
+        for command in step_cfg.get("commands", []):
+            run_command(command, context, steps_cfg)
+    except BuildError:
+        print_status_line("done-fail", subject, duration=duration_text(start_time))
+        print_review_files(get_step_review_files(step_name, steps_cfg, context))
+        raise
+    print_status_line("done-pass", subject, duration=duration_text(start_time))
+    print_review_files(get_step_review_files(step_name, steps_cfg, context))
     completed.add(step_name)
 
 
-def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None:
-    print(f"start regress ({base_context['regress_name']})", flush=True)
+def run_regression(step_cfg: dict, base_context: dict, tests: list[str], steps_cfg: dict) -> None:
     if not tests:
-        print(f"done regress ({base_context['regress_name']})", flush=True)
         return
 
     processes: list[tuple[str, dict, subprocess.Popen[str]]] = []
+    simulate_step_cfg = steps_cfg["simulate"]
 
     for test_name in tests:
         test_context = dict(base_context)
         test_context = get_test_data(test_context, test_name, "regress")
-        print(f"start test {test_name}", flush=True)
+        test_subject = get_step_display_name("simulate", steps_cfg, test_context)
+        test_context["status_subject"] = test_subject
+        test_context["start_time"] = monotonic()
+        print_status_line("start", test_subject)
         command_parts = []
-        for command in step_cfg.get("commands", []):
+        for command in simulate_step_cfg.get("commands", []):
             command_text, _ = normalize_command(command)
             command_parts.append(format_text(command_text, test_context))
         formatted = " && ".join(command_parts)
-        print(f"wait {formatted}", flush=True)
         process = subprocess.Popen(
             formatted,
             shell=True,
@@ -1026,15 +1262,16 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
             if stderr:
                 error_messages.append(stderr)
             error_messages.append(f"test '{test_name}' failed with exit code {process.returncode}")
+            print_status_line("done-fail", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
+            print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
         else:
-            print(f"done test {test_name}", flush=True)
+            print_status_line("done-pass", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
+            print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
 
     if error_messages:
         for message in error_messages:
             print(message, end="" if message.endswith("\n") else "\n", file=sys.stderr)
         raise BuildError("regression failed")
-
-    print(f"done regress ({base_context['regress_name']})", flush=True)
 
 
 def parse_debug_entry(wave_path: Path) -> dict | None:
@@ -1101,17 +1338,16 @@ def print_debug_entries(entries: list[dict]) -> None:
 
 def open_debug_entry(entries: list[dict], gtkwave_exe: str) -> None:
     print_debug_entries(entries)
+    start_time = monotonic()
     while True:
         selection = input("select entry number to open with gtkwave (blank to cancel): ").strip()
         if selection == "":
-            print("done debug canceled", flush=True)
+            print_status_line("done-pass", "debug", duration=duration_text(start_time))
             return
         if not selection.isdigit():
-            print("wait enter a valid number", flush=True)
             continue
         index = int(selection)
         if index < 1 or index > len(entries):
-            print("wait enter a valid number", flush=True)
             continue
 
         selected = entries[index - 1]
@@ -1125,7 +1361,8 @@ def open_debug_entry(entries: list[dict], gtkwave_exe: str) -> None:
             )
         except OSError as error:
             raise BuildError(f"failed to launch gtkwave: {error}") from error
-        print(f"done debug open={wave_path}", flush=True)
+        print_status_line("done-pass", "debug", duration=duration_text(start_time))
+        print_review_files([wave_path])
         return
 
 
@@ -1134,7 +1371,8 @@ def run_debug_mode(env_data: dict) -> None:
     if not entries:
         raise BuildError("no saved waveform files found under workdir")
 
-    print("start debug", flush=True)
+    print_status_line("wait", "debug")
+    print_status_line("start", "debug")
     open_debug_entry(entries, env_data["gtkwave_exe"])
 
 
@@ -1172,128 +1410,209 @@ def validate_synth_context(context: dict) -> None:
         raise BuildError(f"missing synth liberty: {context['synth_liberty']}")
 
 
-def get_workflow_context(base_context: dict, workflow_name: str, args: argparse.Namespace) -> dict:
+def announce_step_tree(
+    step_name: str,
+    steps_cfg: dict,
+    context: dict,
+    announced: set[str],
+) -> None:
+    if step_name in announced:
+        return
+    for dependency in get_step_dependencies(step_name, steps_cfg):
+        announce_step_tree(dependency, steps_cfg, context, announced)
+    print_status_line("wait", get_step_display_name(step_name, steps_cfg, context))
+    announced.add(step_name)
+
+
+def announce_regression_tests(base_context: dict, tests: list[str], steps_cfg: dict) -> None:
+    for test_name in tests:
+        test_context = get_test_data(dict(base_context), test_name, "regress")
+        print_status_line("wait", get_step_display_name("simulate", steps_cfg, test_context))
+
+
+def resolve_selector_argument_name(param_name: str) -> str:
+    selector_to_arg = {
+        "test_name": "test",
+        "regress_name": "regress",
+    }
+    if param_name not in selector_to_arg:
+        raise BuildError(f"unsupported selector param '{param_name}'")
+    return selector_to_arg[param_name]
+
+
+def resolve_target_context(
+    base_context: dict,
+    target_name: str,
+    target_cfg: dict,
+    args: argparse.Namespace,
+) -> dict:
     context = dict(base_context)
-    if workflow_name == "lint":
-        context["run_dir"] = context["lint_out_dir"]
-        context["log_file"] = context["lint_log"]
-        return context
-    if workflow_name == "fv":
-        context["run_dir"] = context["fv_out_dir"]
-        context["log_file"] = context["fv_log"]
-        return context
-    if workflow_name == "synth":
-        context["run_dir"] = context["synth_out_dir"]
-        context["log_file"] = context["synth_log"]
-        return context
-    if workflow_name == "compile":
-        context["run_dir"] = context["compile_dir"]
-        context["log_file"] = resolve_path(
-            apply_template(context["output_layout"]["compile_log"], context)
-        )
-        return context
-    if workflow_name == "test":
-        return get_test_data(context, args.test, "test")
-    if workflow_name == "regress":
-        context["regress_name"] = args.regress
-        return context
-    raise BuildError(f"unsupported workflow '{workflow_name}'")
+    selector_cfg = target_cfg.get("selector")
+    if selector_cfg is not None:
+        if not isinstance(selector_cfg, dict):
+            raise BuildError(f"'selector' must be a mapping for target '{target_name}'")
+        require_keys(selector_cfg, ["kind", "param"], f"targets.{target_name}.selector")
+        selector_kind = selector_cfg["kind"]
+        selector_param = selector_cfg["param"]
+        arg_name = resolve_selector_argument_name(selector_param)
+        selected_name = getattr(args, arg_name)
+        if not isinstance(selected_name, str) or not selected_name:
+            raise BuildError(f"missing selector value for target '{target_name}'")
+        if selector_kind == "test":
+            context = get_test_data(context, selected_name, "test")
+        elif selector_kind == "regression":
+            context["regress_name"] = selected_name
+            context["selected_tests"] = get_regression_tests(dict(context), selected_name)
+        else:
+            raise BuildError(f"unsupported selector kind '{selector_kind}' for target '{target_name}'")
+
+    target_context_cfg = target_cfg.get("context", {})
+    if target_context_cfg:
+        if not isinstance(target_context_cfg, dict):
+            raise BuildError(f"'context' must be a mapping for target '{target_name}'")
+        for key, value in target_context_cfg.items():
+            if not isinstance(value, str):
+                raise BuildError(f"context values must be strings for target '{target_name}'")
+            context[key] = render_value(value, context)
+    return context
 
 
 def main() -> int:
     try:
         args = parse_args()
+        if not args.ip and not args.debug:
+            selected_ip = prompt_for_named_entry("ip", get_available_ips())
+            if selected_ip is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] ip selection canceled", flush=True)
+                return 0
+            args.ip = selected_ip
+
+        if not get_requested_mode_names(args):
+            selected_modes = prompt_for_modes()
+            if selected_modes is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] mode selection canceled", flush=True)
+                return 0
+            apply_selected_modes(args, selected_modes)
+
         build_cfg = load_yaml(BUILD_CONFIG)
-        require_keys(build_cfg, ["workflows", "steps"], str(BUILD_CONFIG))
-        workflows = build_cfg["workflows"]
+        require_keys(build_cfg, ["targets", "steps"], str(BUILD_CONFIG))
+        targets_cfg = build_cfg["targets"]
         steps_cfg = build_cfg["steps"]
-        if not isinstance(workflows, dict):
-            raise BuildError(f"'workflows' must be a mapping in {BUILD_CONFIG}")
+        if not isinstance(targets_cfg, dict):
+            raise BuildError(f"'targets' must be a mapping in {BUILD_CONFIG}")
         if not isinstance(steps_cfg, dict):
             raise BuildError(f"'steps' must be a mapping in {BUILD_CONFIG}")
 
-        requested_workflows = resolve_requested_workflows(args)
+        requested_targets = resolve_requested_targets(args)
         if args.debug:
             env_data = get_env_data({"gtkwave"})
             run_debug_mode(env_data)
             return 0
-        for workflow_name in requested_workflows:
-            if workflow_name not in workflows:
-                raise BuildError(f"workflow '{workflow_name}' is not defined")
+        for target_name in requested_targets:
+            if target_name not in targets_cfg:
+                raise BuildError(f"target '{target_name}' is not defined")
 
         context = get_ip_data(args.ip)
+        for target_name in requested_targets:
+            target_cfg = targets_cfg[target_name]
+            selector_cfg = target_cfg.get("selector")
+            if selector_cfg is None:
+                continue
+            if not isinstance(selector_cfg, dict):
+                raise BuildError(f"'selector' must be a mapping for target '{target_name}'")
+            require_keys(selector_cfg, ["kind", "param"], f"targets.{target_name}.selector")
+            arg_name = resolve_selector_argument_name(selector_cfg["param"])
+            arg_value = getattr(args, arg_name)
+            if arg_value != INTERACTIVE_SELECT:
+                continue
+            selected_name = prompt_for_named_entry(selector_cfg["kind"], (
+                get_available_tests(context) if selector_cfg["kind"] == "test" else get_available_regressions(context)
+            ))
+            if selected_name is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] {selector_cfg['kind']} selection canceled", flush=True)
+                return 0
+            setattr(args, arg_name, selected_name)
         fv_profile: dict | None = None
-        if "fv" in requested_workflows:
+        if "fv" in requested_targets:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
-        required_tool_names = collect_required_tool_names(requested_workflows, context, fv_profile)
+            context.update(fv_profile)
+        required_tool_names = collect_required_tool_names(requested_targets, targets_cfg, context)
 
         env_data = get_env_data(required_tool_names)
         context.update(env_data)
-        context = apply_run_paths(context, resolve_tag(args.tag, context))
-        regression_tests: list[str] = []
-
-        if args.test:
-            get_test_data(dict(context), args.test, "test")
-        if args.regress:
-            regression_tests = get_regression_tests(context, args.regress)
+        resolved_tag = resolve_tag(args.tag, context)
+        args.tag = resolved_tag
+        context = apply_run_paths(context, resolved_tag)
+        if args.regress and isinstance(args.regress, str):
             context["regress_name"] = args.regress
-        if "lint" in requested_workflows:
+        if "lint" in requested_targets:
             validate_lint_context(context)
-        if "fv" in requested_workflows:
+        if "fv" in requested_targets:
             validate_fv_context(context, fv_profile)
-        if "synth" in requested_workflows:
+        if "synth" in requested_targets:
             validate_synth_context(context)
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 
-        completed: set[str] = set()
-        print(
-            f"start workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
-            flush=True,
-        )
-        run_step("prepare", steps_cfg, context, completed)
+        workflow_subject = f"workflow {','.join(requested_targets)} ip={context['ip']} tag={context['tag']}"
+        workflow_start = monotonic()
+        with PRINT_LOCK:
+            print(f"resolved command: {build_resolved_command(args)}", flush=True)
+        print_status_line("wait", workflow_subject)
+        print_status_line("start", workflow_subject)
 
-        workflow_dependencies, workflow_closures = collect_workflow_dependencies(
-            requested_workflows,
-            workflows,
+        target_dependencies, target_closures = collect_target_dependencies(
+            requested_targets,
+            targets_cfg,
             steps_cfg,
         )
-        workflow_contexts = {
-            workflow_name: get_workflow_context(context, workflow_name, args)
-            for workflow_name in requested_workflows
+        target_contexts = {
+            target_name: resolve_target_context(context, target_name, targets_cfg[target_name], args)
+            for target_name in requested_targets
         }
-        workflow_futures: dict[str, concurrent.futures.Future[None]] = {}
+        announced_steps: set[str] = set()
+        for target_name in requested_targets:
+            target_cfg = targets_cfg[target_name]
+            target_context = target_contexts[target_name]
+            root_steps = target_cfg.get("root_steps", [])
+            if not isinstance(root_steps, list):
+                raise BuildError(f"'root_steps' must be a list for target '{target_name}'")
+            for step_name in root_steps:
+                announce_step_tree(step_name, steps_cfg, target_context, announced_steps)
+            if target_name == "regress":
+                announce_regression_tests(target_context, target_context.get("selected_tests", []), steps_cfg)
 
-        def execute_workflow(workflow_name: str) -> None:
-            for dependency_workflow in sorted(workflow_dependencies[workflow_name]):
-                workflow_futures[dependency_workflow].result()
+        run_step("prepare", steps_cfg, context, set())
+        target_futures: dict[str, concurrent.futures.Future[None]] = {}
 
-            workflow_completed = {"prepare"}
-            for dependency_workflow in workflow_dependencies[workflow_name]:
-                workflow_completed.update(workflow_closures[dependency_workflow])
+        def execute_target(target_name: str) -> None:
+            for dependency_target in sorted(target_dependencies[target_name]):
+                target_futures[dependency_target].result()
 
-            workflow_context = workflow_contexts[workflow_name]
-            if workflow_name == "regress":
-                run_step("compile", steps_cfg, workflow_context, workflow_completed)
-                run_regression(steps_cfg["regress"], workflow_context, regression_tests)
-                return
+            target_completed = {"prepare"}
+            for dependency_target in target_dependencies[target_name]:
+                target_completed.update(target_closures[dependency_target])
 
-            for step_name in workflows[workflow_name]:
-                run_step(step_name, steps_cfg, workflow_context, workflow_completed)
+            target_cfg = targets_cfg[target_name]
+            target_context = target_contexts[target_name]
+            for step_name in target_cfg.get("root_steps", []):
+                run_step(step_name, steps_cfg, target_context, target_completed)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(requested_workflows)) as executor:
-            for workflow_name in requested_workflows:
-                workflow_futures[workflow_name] = executor.submit(execute_workflow, workflow_name)
-            for workflow_name in requested_workflows:
-                workflow_futures[workflow_name].result()
-        print(
-            f"done workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
-            flush=True,
-        )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(requested_targets)) as executor:
+            for target_name in requested_targets:
+                target_futures[target_name] = executor.submit(execute_target, target_name)
+            for target_name in requested_targets:
+                target_futures[target_name].result()
+        print_status_line("done-pass", workflow_subject, duration=duration_text(workflow_start))
+        print_review_files([context["ip_root"]])
         return 0
     except BuildError as error:
-        print(f"done error: {error}", file=sys.stderr)
+        with PRINT_LOCK:
+            print(f"[done-fail {timestamp_text()}] workflow {error}", file=sys.stderr, flush=True)
         return 1
 
 

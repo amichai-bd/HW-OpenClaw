@@ -1,65 +1,158 @@
-workflows:
+targets:
   lint:
-    - lint
+    root_steps:
+      - lint
+    tool_requirements:
+      - verilator
+    context:
+      run_dir: "{lint_out_dir}"
+      log_file: "{lint_log}"
+    review_files:
+      - "{ip_root}"
+
   fv:
-    - fv
+    root_steps:
+      - fv
+    tool_requirements:
+      - sby
+      - yosys
+      - "{fv_solver}"
+    context:
+      run_dir: "{fv_out_dir}"
+      log_file: "{fv_log}"
+    review_files:
+      - "{ip_root}"
+
   synth:
-    - synth
+    root_steps:
+      - synth
+    tool_requirements:
+      - yosys
+    context:
+      run_dir: "{synth_out_dir}"
+      log_file: "{synth_log}"
+    review_files:
+      - "{ip_root}"
+
   compile:
-    - compile
+    root_steps:
+      - compile
+    tool_requirements:
+      - verilator
+    context:
+      run_dir: "{compile_dir}"
+      log_file: "{output_layout.compile_log}"
+    review_files:
+      - "{ip_root}"
+
   test:
-    - simulate
+    root_steps:
+      - simulate
+    tool_requirements:
+      - verilator
+    selector:
+      kind: test
+      param: test_name
+      interactive: true
+    review_files:
+      - "{ip_root}"
+
   regress:
-    - regress
+    root_steps:
+      - regress
+    tool_requirements:
+      - verilator
+    selector:
+      kind: regression
+      param: regress_name
+      interactive: true
+    context:
+      regress_name: "{regress_name}"
+    review_files:
+      - "{ip_root}"
 
 steps:
   prepare:
+    display_name: "prepare {ip}"
     depends_on: []
+    review_files:
+      - "{generated_all_filelist}"
+      - "{generated_rtl_filelist}"
+      - "{generated_fv_filelist}"
     commands:
       - action: prepare_filelists
+
   lint:
+    display_name: "lint {ip}"
     depends_on:
       - prepare
+    review_files:
+      - "{lint_log}"
     commands:
       - cmd: mkdir -p {lint_out_dir}
       - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
         log: "{log_file}"
+
   fv:
+    display_name: "fv {ip}"
     depends_on:
       - prepare
+    review_files:
+      - "{fv_log}"
+      - "{fv_summary_yaml}"
+      - "{fv_run_dir}/status"
     commands:
       - action: prepare_fv_config
       - cmd: mkdir -p {fv_out_dir}
       - cmd: cd {fv_out_dir} && {sby_exe} -f -d {fv_run_dir} {generated_fv_config}
         log: "{log_file}"
       - action: prepare_fv_summary
+
   synth:
+    display_name: "synth {ip}"
     depends_on:
       - prepare
+    review_files:
+      - "{synth_log}"
+      - "{synth_summary_yaml}"
+      - "{synth_netlist}"
     commands:
       - action: prepare_synth_script
       - cmd: mkdir -p {synth_out_dir}
       - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
         log: "{log_file}"
       - action: prepare_synth_summary
+
   compile:
+    display_name: "compile {ip}"
     depends_on:
       - prepare
+    review_files:
+      - "{output_layout.compile_log}"
+      - "{binary_path}"
     commands:
       - cmd: mkdir -p {compile_dir}
       - cmd: cd {compile_dir} && {verilator_exe} -Wall --binary --top-module {top_module} {verilator_trace_flag} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
-        log: "{log_file}"
+        log: "{output_layout.compile_log}"
+
   simulate:
+    display_name: "test {test_name} {ip}"
     depends_on:
       - compile
+    review_files:
+      - "{log_file}"
+      - "{tracker_path}"
+      - "{wave_path}"
     commands:
       - cmd: mkdir -p {run_dir}
       - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
         log: "{log_file}"
+
   regress:
+    display_name: "regress {regress_name} {ip}"
     depends_on:
       - compile
+    review_files:
+      - "{ip_root}/regressions/{regress_name}"
     commands:
-      - cmd: mkdir -p {run_dir}
-      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
-        log: "{log_file}"
+      - action: run_regression
