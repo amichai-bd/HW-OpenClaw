@@ -1,0 +1,12 @@
+[options]
+mode {fv_mode}
+depth {fv_depth}
+expect {fv_expect}
+{fv_multiclock_option}
+
+[engines]
+{fv_engine} {fv_solver}
+
+[script]
+read -formal {yosys_read_verilog_args} {fv_source_args}
+prep -top {fv_top}

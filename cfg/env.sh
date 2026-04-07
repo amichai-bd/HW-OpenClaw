@@ -37,6 +37,12 @@ exports = {
     "GTKWAVE_VERSION": tools["gtkwave"]["version"],
     "YOSYS_EXE": tools["yosys"]["exe"],
     "YOSYS_VERSION": tools["yosys"]["version"],
+    "SBY_EXE": tools["sby"]["exe"],
+    "SBY_VERSION": tools["sby"]["version"],
+    "BOOLECTOR_EXE": tools["boolector"]["exe"],
+    "BOOLECTOR_VERSION": tools["boolector"]["version"],
+    "Z3_EXE": tools["z3"]["exe"],
+    "Z3_VERSION": tools["z3"]["version"],
     "WAVEFORM_ENABLED": "1" if wave["enabled"] else "0",
     "WAVEFORM_FORMAT": wave["format"],
 }

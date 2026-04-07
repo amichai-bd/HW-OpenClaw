@@ -11,6 +11,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 ├── cfg/
 │   ├── env.sh
 │   ├── env.yaml
+│   ├── fv.yaml
 │   ├── ip.yaml
 │   └── synth.yaml
 ├── src/
@@ -24,7 +25,15 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 │   │       │   └── tests/
 │   │       ├── filelist/
 │   │       └── regressions/
-│   └── rtl/
+│   ├── fv/
+│   │   ├── common/
+│   │   │   ├── assumptions/
+│   │   │   └── scripts/
+│   │   └── <ip>/
+│   │       ├── code/
+│   │       ├── proofs/
+│   │       └── properties/
+│   ├── rtl/
 │       ├── common/
 │       │   └── include/
 │       └── <ip>/
@@ -47,8 +56,11 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - YAML files are the source of truth for tool flow, IP metadata, output layout, and environment data.
 - `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
+- `cfg/fv.yaml` owns shared formal profiles, solver selection, and reusable formal script selection.
 - `cfg/synth.yaml` owns shared synthesis profiles, reusable script selection, and synthesis-technology metadata.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
+- Formal-verification collateral should live under `src/fv/`, separate from both `rtl/`, `dv/`, and `syn/`.
+- Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
 - Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
 - Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
 - Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
@@ -69,6 +81,7 @@ Then invoke the builder through the standard repo launcher:
 ```sh
 build -ip fifo -compile
 build -ip fifo -lint
+build -ip counter -fv
 build -ip fifo -synth
 build -ip fifo -test sanity
 build -ip fifo -regress level_0
@@ -86,6 +99,8 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
+- Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
+- The current formal flow is selected through `cfg/fv.yaml`.
 - Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current synthesis flow is selected through `cfg/synth.yaml`.
 - The active shared synth profile uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
@@ -94,6 +109,8 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 - Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
 - Test outputs include at least a simulation log, a tracker JSON file, and a VCD waveform when waveform dumping is enabled in the environment config.
 - Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
+- Shared formal source collateral lives under `src/fv/common/`, while formal run outputs go under `workdir/<tag>/<ip>/fv/`.
+- Formal outputs include the generated `.sby` file, the SBY run directory, the formal log, and a derived `fv_summary.yaml` artifact for automation.
 - Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
 - Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, and a derived `synth_summary.yaml` artifact for automation.
 

@@ -28,6 +28,10 @@
 .
 ├── bin/
 ├── cfg/
+│   ├── env.yaml
+│   ├── fv.yaml
+│   ├── ip.yaml
+│   └── synth.yaml
 ├── src/
 │   ├── dv/
 │   │   └── <ip>/
@@ -39,7 +43,15 @@
 │   │       │   └── tests/
 │   │       ├── filelist/
 │   │       └── regressions/
-│   └── rtl/
+│   ├── fv/
+│   │   ├── common/
+│   │   │   ├── assumptions/
+│   │   │   └── scripts/
+│   │   └── <ip>/
+│   │       ├── code/
+│   │       ├── proofs/
+│   │       └── properties/
+│   ├── rtl/
 │       ├── common/
 │       │   └── include/
 │       └── <ip>/
@@ -68,17 +80,22 @@
 - If a tool needs build steps, it must read them from the tool YAML file.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
+- Shared formal profile data should live in `cfg/fv.yaml`.
 - Shared synthesis profile data should live in `cfg/synth.yaml`.
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
+- Formal-specific collateral should live under `src/fv/`, not under `rtl/`, `dv/`, or `syn/`.
+- Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
 - Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
+- IP-level formal selection should live in `cfg/ip.yaml`, while reusable formal profiles and solver metadata should live in `cfg/fv.yaml`.
 - IP-level synthesis selection should live in `cfg/ip.yaml`, while reusable synthesis profiles and technology metadata should live in `cfg/synth.yaml`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 - RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
+- Formal runs should emit a machine-readable summary artifact derived from the raw SBY run outputs so automation can consume stable data without scraping SBY text logs.
 - The initial synthesis flow is a generic Yosys foundation flow, not a signoff flow. Synthesis warnings from generic mapping should be captured in report artifacts under `workdir/<tag>/<ip>/synth/`, not hidden.
 - Synthesis runs should also emit a machine-readable summary artifact derived from the raw reports so automation can consume stable data without scraping Yosys text logs.
 
@@ -123,6 +140,7 @@ src/dv/<ip>/
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
-- The standard builder flows include `build -ip <ip> -lint`, `-synth`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
+- The standard builder flows include `build -ip <ip> -lint`, `-fv`, `-synth`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
+- Formal flow should emit both raw SBY outputs and a derived `fv_summary.yaml` artifact under `workdir/<tag>/<ip>/fv/`.
 - Synthesis flow should emit both raw reports and a derived `synth_summary.yaml` artifact under `workdir/<tag>/<ip>/synth/`.
