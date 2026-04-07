@@ -13,6 +13,7 @@ fi
 eval "$(
     REPO_ROOT="$_codex_repo_root" ENV_YAML="$_codex_env_yaml" python3 - <<'PY'
 import os
+import re
 import shlex
 from pathlib import Path
 
@@ -22,38 +23,45 @@ repo_root = os.environ["REPO_ROOT"]
 env_yaml = Path(os.environ["ENV_YAML"])
 data = yaml.safe_load(env_yaml.read_text(encoding="utf-8"))
 env = data["environment"]
-tools = env["tools"]
-wave = env["simulation"]["waveform"]
+shell_cfg = env["shell"]
 
-exports = {
-    "MODEL_ROOT": env["model_root"].format(repo_root=repo_root),
-    "PROJECT_BIN": env["bin_dir"].format(repo_root=repo_root),
-    "PYTHON3_EXE": tools["python3"]["exe"],
-    "PYTHON3_VERSION": tools["python3"]["version"],
-    "VERILATOR_EXE": tools["verilator"]["exe"],
-    "VERILATOR_VERSION": tools["verilator"]["version"],
-    "VERILATOR_TRACE_FLAG": tools["verilator"]["trace_flag"],
-    "GTKWAVE_EXE": tools["gtkwave"]["exe"],
-    "GTKWAVE_VERSION": tools["gtkwave"]["version"],
-    "YOSYS_EXE": tools["yosys"]["exe"],
-    "YOSYS_VERSION": tools["yosys"]["version"],
-    "SBY_EXE": tools["sby"]["exe"],
-    "SBY_VERSION": tools["sby"]["version"],
-    "BOOLECTOR_EXE": tools["boolector"]["exe"],
-    "BOOLECTOR_VERSION": tools["boolector"]["version"],
-    "Z3_EXE": tools["z3"]["exe"],
-    "Z3_VERSION": tools["z3"]["version"],
-    "WAVEFORM_ENABLED": "1" if wave["enabled"] else "0",
-    "WAVEFORM_FORMAT": wave["format"],
-}
+def lookup(mapping, dotted_key):
+    value = mapping
+    for part in dotted_key.split("."):
+        if not isinstance(value, dict) or part not in value:
+            raise KeyError(dotted_key)
+        value = value[part]
+    return value
+
+
+def resolve_template(text, mapping):
+    def replace(match):
+        key = match.group(1)
+        value = lookup(mapping, key)
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    return re.sub(r"\{([^{}]+)\}", replace, text)
+
+
+context = dict(env)
+context["repo_root"] = repo_root
+context["model_root"] = resolve_template(str(env["model_root"]), context)
+context["bin_dir"] = resolve_template(str(env["bin_dir"]), context)
+
+exports_cfg = shell_cfg["exports"]
+path_prepend_cfg = shell_cfg.get("path_prepend", [])
+exports = {key: resolve_template(str(value), context) for key, value in exports_cfg.items()}
 
 for key, value in exports.items():
     print(f"export {key}={shlex.quote(value)}")
 
-project_bin = exports["PROJECT_BIN"]
-print('case ":${PATH:-}:" in')
-print(f'  *:{shlex.quote(project_bin)}:*) ;;')
-print(f'  *) export PATH={shlex.quote(project_bin)}:"$PATH" ;;')
-print("esac")
+for raw_path in path_prepend_cfg:
+    path_value = resolve_template(str(raw_path), context)
+    print('case ":${PATH:-}:" in')
+    print(f'  *:{shlex.quote(path_value)}:*) ;;')
+    print(f'  *) export PATH={shlex.quote(path_value)}:"$PATH" ;;')
+    print("esac")
 PY
 )"

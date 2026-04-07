@@ -18,7 +18,7 @@ The repository treats the monorepo as a coordination layer across design discipl
 - user-facing commands live under `bin/`
 - generated run collateral lives under `workdir/`
 
-The builder is the execution engine, not the source of truth. Build step order is defined in `tools/build/build.yaml`. IP-specific locations and output layout are defined in `cfg/ip.yaml`. Environment and tool metadata are defined in `cfg/env.yaml`. Shared formal and synthesis profiles are defined in `cfg/fv.yaml` and `cfg/synth.yaml`. This split keeps responsibility clean:
+The builder is the execution engine, not the source of truth. Build step order is defined in `tools/build/build.yaml`. IP-specific locations and output layout are defined in `cfg/ip.yaml`. Environment data, tool metadata, and shell export contracts are defined in `cfg/env.yaml`. Shared formal and synthesis profiles are defined in `cfg/fv.yaml` and `cfg/synth.yaml`. This split keeps responsibility clean:
 
 - environment data answers what tools and shell-visible paths exist
 - IP configuration answers what this repository contains

@@ -82,6 +82,7 @@
 - If a tool needs build steps, it must read them from the tool YAML file.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
+- The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should stay agnostic and only materialize the YAML-defined exports and PATH updates.
 - Shared formal profile data should live in `cfg/fv.yaml`.
 - Shared synthesis profile data should live in `cfg/synth.yaml`.
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
