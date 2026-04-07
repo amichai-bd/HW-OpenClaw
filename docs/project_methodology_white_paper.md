@@ -41,7 +41,7 @@ src/rtl/
     └── filelist_rtl_<ip>.f
 ```
 
-The `common` area exists so IPs can depend on shared generic collateral without creating accidental cross-IP dependencies. Shared macros, generic reusable includes, and eventually generic models belong there. An IP may consume `src/rtl/common/`, but one IP should not reach into another IP’s RTL tree.
+The `common` area exists so IPs can depend on shared generic collateral without creating accidental cross-IP dependencies. Shared macros, generic reusable includes, and eventually generic models belong there. That does not mean one IP can never use another IP. Real design hierarchies often compose smaller IPs into larger IPs. The rule is that reusable generic building blocks should live in `common/`, while cross-IP composition should be intentional and explicit through configuration, filelists, and integration boundaries rather than through ad hoc borrowing of a neighbor IP’s local implementation collateral.
 
 Within an IP, `code/` contains the synthesizable logic, `lint/` contains lint waivers or lint-specific collateral, and the RTL filelist defines the authoritative RTL source set relative to `$MODEL_ROOT`. RTL coding style is intentionally strict: lowercase module and file names, uppercase parameters, lowercase underscore signal naming, `always_comb` and `always_ff` instead of plain `always`, and no inline initialization on `logic` declarations. This helps keep style consistent across simulation, synthesis, and formal.
 
@@ -90,7 +90,7 @@ src/fv/
 
 This separation reflects methodology. Shared assumptions and SBY scripts belong in `common/`. IP-local formal environment code belongs in `code/`. Assertions and properties belong in `properties/`. Thin proof wrappers that assemble a specific proof target belong in `proofs/`.
 
-The formal flow is profile-driven. `cfg/fv.yaml` defines reusable proof profiles such as full `prove` or bounded `bmc`. `cfg/ip.yaml` selects the profile and the formal source set for each IP. This is important because not every IP should use the same formal strategy. Simple control IPs may support a stronger full proof, while stateful data-path IPs may start with a bounded safety profile at a reduced parameter point. That is not a weakness. It is an honest formal methodology choice.
+The formal flow is profile-driven. `cfg/fv.yaml` defines reusable proof profiles such as full `prove` or bounded `bmc`. `cfg/ip.yaml` selects the profile, the proof top, and the per-IP formal filelist for each IP. This is important because not every IP should use the same formal strategy. Simple control IPs may support a stronger full proof, while stateful data-path IPs may start with a bounded safety profile at a reduced parameter point. That is not a weakness. It is an honest formal methodology choice.
 
 The repo already demonstrates why this separation matters. Formal on the `<IP>` exposed a real microarchitectural issue in occupancy handling during simultaneous valid push and pop. That bug was corrected in RTL and then revalidated through DV, synthesis, and formal. This is exactly the intended interaction between disciplines: formal is allowed to find real design bugs, but any RTL fix must be clean across the rest of the repository.
 
