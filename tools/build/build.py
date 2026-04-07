@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run a named test")
-    parser.add_argument("-regress", help="run a named regression")
+    parser.add_argument("-regress", nargs="?", const=INTERACTIVE_SELECT, help="run a named regression")
     parser.add_argument("-debug", action="store_true", help="list saved waveforms and open one in gtkwave")
     args = parser.parse_args()
 
@@ -96,14 +96,10 @@ def parse_args() -> argparse.Namespace:
             1 if args.debug else 0,
         ]
     )
-    if requested_modes == 0:
-        raise BuildError("select at least one of -lint, -fv, -synth, -compile, -test, -regress, or -debug")
     if args.debug and requested_modes != 1:
         raise BuildError("'-debug' must be used by itself")
     if args.test and args.regress:
         raise BuildError("select only one of '-test' or '-regress'")
-    if not args.debug and not args.ip:
-        raise BuildError("'-ip' is required for -lint, -fv, -synth, -compile, -test, or -regress")
     return args
 
 
@@ -429,6 +425,15 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     return ip_data
 
 
+def get_available_ips() -> list[str]:
+    ip_root = load_yaml(IP_CONFIG)
+    require_keys(ip_root, ["ip"], str(IP_CONFIG))
+    ip_cfg = ip_root["ip"]
+    if not isinstance(ip_cfg, dict):
+        raise BuildError(f"'ip' must be a mapping in {IP_CONFIG}")
+    return sorted(ip_cfg.keys())
+
+
 def load_named_yaml_entries(directory: Path, top_key: str) -> list[str]:
     if not directory.is_dir():
         raise BuildError(f"missing directory: {directory}")
@@ -477,6 +482,86 @@ def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
             return names[index - 1]
         with PRINT_LOCK:
             print("enter a valid number", flush=True)
+
+
+def prompt_for_modes() -> list[str] | None:
+    mode_items = [
+        ("lint", "-lint"),
+        ("fv", "-fv"),
+        ("synth", "-synth"),
+        ("compile", "-compile"),
+        ("test", "-test"),
+        ("regress", "-regress"),
+        ("debug", "-debug"),
+    ]
+    with PRINT_LOCK:
+        print("available modes:", flush=True)
+        for index, (name, flag) in enumerate(mode_items, start=1):
+            print(f"  [{index}] {name} ({flag})", flush=True)
+    while True:
+        selection = input("select mode numbers (comma-separated, 0/q to cancel): ").strip()
+        if selection in {"0", "q", "Q", ""}:
+            return None
+        parts = [part.strip() for part in selection.split(",") if part.strip()]
+        if not parts or not all(part.isdigit() for part in parts):
+            with PRINT_LOCK:
+                print("enter valid mode numbers", flush=True)
+            continue
+        indexes = [int(part) for part in parts]
+        if any(index < 1 or index > len(mode_items) for index in indexes):
+            with PRINT_LOCK:
+                print("enter valid mode numbers", flush=True)
+            continue
+        selected = [mode_items[index - 1][0] for index in indexes]
+        selected_set = set(selected)
+        if "debug" in selected_set and len(selected_set) != 1:
+            with PRINT_LOCK:
+                print("debug must be selected by itself", flush=True)
+            continue
+        if "test" in selected_set and "regress" in selected_set:
+            with PRINT_LOCK:
+                print("select only one of test or regress", flush=True)
+            continue
+        return selected
+
+
+def apply_selected_modes(args: argparse.Namespace, selected_modes: list[str]) -> None:
+    args.lint = "lint" in selected_modes
+    args.fv = "fv" in selected_modes
+    args.synth = "synth" in selected_modes
+    args.compile = "compile" in selected_modes
+    args.debug = "debug" in selected_modes
+    if "test" in selected_modes and not args.test:
+        args.test = INTERACTIVE_SELECT
+    if "regress" in selected_modes and not args.regress:
+        args.regress = INTERACTIVE_SELECT
+
+
+def get_requested_mode_names(args: argparse.Namespace) -> list[str]:
+    return resolve_requested_workflows(args)
+
+
+def build_resolved_command(args: argparse.Namespace) -> str:
+    parts = ["build"]
+    if args.ip:
+        parts.extend(["-ip", args.ip])
+    if args.tag:
+        parts.extend(["-tag", args.tag])
+    if args.lint:
+        parts.append("-lint")
+    if args.fv:
+        parts.append("-fv")
+    if args.synth:
+        parts.append("-synth")
+    if args.compile:
+        parts.append("-compile")
+    if args.test:
+        parts.extend(["-test", args.test])
+    if args.regress:
+        parts.extend(["-regress", args.regress])
+    if args.debug:
+        parts.append("-debug")
+    return " ".join(parts)
 
 
 def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
@@ -1360,6 +1445,22 @@ def get_workflow_context(base_context: dict, workflow_name: str, args: argparse.
 def main() -> int:
     try:
         args = parse_args()
+        if not args.ip and not args.debug:
+            selected_ip = prompt_for_named_entry("ip", get_available_ips())
+            if selected_ip is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] ip selection canceled", flush=True)
+                return 0
+            args.ip = selected_ip
+
+        if not get_requested_mode_names(args):
+            selected_modes = prompt_for_modes()
+            if selected_modes is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] mode selection canceled", flush=True)
+                return 0
+            apply_selected_modes(args, selected_modes)
+
         build_cfg = load_yaml(BUILD_CONFIG)
         require_keys(build_cfg, ["workflows", "steps"], str(BUILD_CONFIG))
         workflows = build_cfg["workflows"]
@@ -1386,6 +1487,13 @@ def main() -> int:
                     print(f"[done-pass {timestamp_text()}] test selection canceled", flush=True)
                 return 0
             args.test = selected_test
+        if args.regress == INTERACTIVE_SELECT:
+            selected_regression = prompt_for_named_entry("regression", get_available_regressions(context))
+            if selected_regression is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] regression selection canceled", flush=True)
+                return 0
+            args.regress = selected_regression
         fv_profile: dict | None = None
         if "fv" in requested_workflows:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
@@ -1394,7 +1502,9 @@ def main() -> int:
 
         env_data = get_env_data(required_tool_names)
         context.update(env_data)
-        context = apply_run_paths(context, resolve_tag(args.tag, context))
+        resolved_tag = resolve_tag(args.tag, context)
+        args.tag = resolved_tag
+        context = apply_run_paths(context, resolved_tag)
         regression_tests: list[str] = []
 
         if args.test:
@@ -1414,6 +1524,8 @@ def main() -> int:
         workflow_subject = f"workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}"
         workflow_start = monotonic()
         completed: set[str] = set()
+        with PRINT_LOCK:
+            print(f"resolved command: {build_resolved_command(args)}", flush=True)
         print_status_line("wait", workflow_subject)
         print_status_line("start", workflow_subject)
         run_step("prepare", steps_cfg, context, completed)
