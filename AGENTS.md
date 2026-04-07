@@ -47,10 +47,8 @@
 │           ├── lint/
 │           └── filelist_rtl_<ip>.f
 │   └── syn/
-│       ├── common/
-│       │   ├── constraints/
-│       │   └── lib/
-│       └── <ip>/
+│       └── common/
+│           ├── lib/
 │           └── scripts/
 ├── tools/
 └── workdir/
@@ -75,6 +73,7 @@
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
 - Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
+- IP-level synthesis selection should live in `cfg/ip.yaml`, while reusable synthesis profiles and technology metadata should live in `cfg/synth.yaml`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
@@ -126,3 +125,4 @@ src/dv/<ip>/
 - The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
 - The standard builder flows include `build -ip <ip> -lint`, `-synth`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
+- Synthesis flow should emit both raw reports and a derived `synth_summary.yaml` artifact under `workdir/<tag>/<ip>/synth/`.

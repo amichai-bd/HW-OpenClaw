@@ -52,6 +52,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
 - Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
 - Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
+- IPs select synthesis behavior in `cfg/ip.yaml` via a synth profile, while the shared profile definitions live in `cfg/synth.yaml`.
 - Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
 - DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
 
