@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  gate-fifo:
+  gate:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -47,25 +47,6 @@ jobs:
           name: workdir-fifo
           path: workdir/gh_${{ github.run_id }}_fifo/
           if-no-files-found: error
-
-  gate-counter:
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-
-      - name: setup tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y verilator yosys boolector z3 python3-click
-          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
-          make -C /tmp/sby install PREFIX="$HOME/.local"
-          python3 --version
-          verilator --version
-          yosys -V
-          "$HOME/.local/bin/sby" --version
-          boolector --version
-          z3 --version
 
       - name: run counter gate
         run: |
