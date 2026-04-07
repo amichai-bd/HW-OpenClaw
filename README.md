@@ -86,6 +86,8 @@ build -ip counter -fv
 build -ip fifo -synth
 build -ip fifo -test sanity
 build -ip fifo -regress level_0
+build -ip fifo -lint -fv -synth -regress level_2
+build -ip counter -compile -test sanity
 ```
 
 To browse saved waveform runs:
@@ -95,6 +97,8 @@ build -debug
 ```
 
 That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets you pick one to open in GTKWave.
+
+The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
 
 ## Current flow
 

@@ -57,10 +57,22 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     requested_modes = sum(
-        [1 if args.lint else 0, 1 if args.fv else 0, 1 if args.synth else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
+        [
+            1 if args.lint else 0,
+            1 if args.fv else 0,
+            1 if args.synth else 0,
+            1 if args.compile else 0,
+            1 if args.test else 0,
+            1 if args.regress else 0,
+            1 if args.debug else 0,
+        ]
     )
-    if requested_modes != 1:
-        raise BuildError("select exactly one of -lint, -fv, -synth, -compile, -test, -regress, or -debug")
+    if requested_modes == 0:
+        raise BuildError("select at least one of -lint, -fv, -synth, -compile, -test, -regress, or -debug")
+    if args.debug and requested_modes != 1:
+        raise BuildError("'-debug' must be used by itself")
+    if args.test and args.regress:
+        raise BuildError("select only one of '-test' or '-regress'")
     if not args.debug and not args.ip:
         raise BuildError("'-ip' is required for -lint, -fv, -synth, -compile, -test, or -regress")
     return args
@@ -444,20 +456,40 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
     return list(tests)
 
 
-def resolve_workflow_name(args: argparse.Namespace) -> str:
+def resolve_requested_workflows(args: argparse.Namespace) -> list[str]:
+    workflows: list[str] = []
     if args.debug:
-        return "debug"
+        return ["debug"]
     if args.lint:
-        return "lint"
+        workflows.append("lint")
     if args.fv:
-        return "fv"
+        workflows.append("fv")
     if args.synth:
-        return "synth"
+        workflows.append("synth")
     if args.compile:
-        return "compile"
+        workflows.append("compile")
     if args.test:
-        return "test"
-    return "regress"
+        workflows.append("test")
+    if args.regress:
+        workflows.append("regress")
+    return workflows
+
+
+def collect_required_tool_names(
+    requested_workflows: list[str],
+    context: dict,
+    fv_profile: dict | None,
+) -> set[str]:
+    required_tool_names: set[str] = set()
+    if any(workflow in requested_workflows for workflow in ["lint", "compile", "test", "regress"]):
+        required_tool_names.add("verilator")
+    if "synth" in requested_workflows:
+        required_tool_names.add("yosys")
+    if "fv" in requested_workflows:
+        if fv_profile is None:
+            raise BuildError("internal error: missing fv profile")
+        required_tool_names.update({"sby", "yosys", fv_profile["fv_solver"]})
+    return required_tool_names
 
 
 def format_text(template: str, context: dict) -> str:
@@ -1007,6 +1039,40 @@ def run_debug_mode(env_data: dict) -> None:
     open_debug_entry(entries, env_data["gtkwave_exe"])
 
 
+def validate_lint_context(context: dict) -> None:
+    if not Path(context["lint_waiver"]).is_file():
+        raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
+
+
+def validate_fv_context(context: dict, fv_profile: dict | None) -> None:
+    if fv_profile is None:
+        raise BuildError("internal error: missing fv profile")
+    context.update(fv_profile)
+    if not isinstance(context["fv_filelist"], str) or not context["fv_filelist"]:
+        raise BuildError(f"'fv_filelist' must be a non-empty string in ip.{context['ip']}")
+    if not Path(context["fv_script_template"]).is_file():
+        raise BuildError(f"missing fv script template: {context['fv_script_template']}")
+    if not (REPO_ROOT / context["fv_filelist"]).is_file():
+        raise BuildError(f"missing fv filelist: {REPO_ROOT / context['fv_filelist']}")
+    if not Path(context["sby_exe"]).is_file():
+        raise BuildError(f"missing sby executable: {context['sby_exe']}")
+    solver_exe, solver_version = resolve_fv_solver(context)
+    context["fv_solver_exe"] = solver_exe
+    context["fv_solver_version"] = solver_version
+    if not Path(solver_exe).is_file():
+        raise BuildError(f"missing fv solver executable: {solver_exe}")
+
+
+def validate_synth_context(context: dict) -> None:
+    if "synth_profile" not in context:
+        raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
+    context.update(get_synth_profile(context["synth_profile"]))
+    if not Path(context["synth_script"]).is_file():
+        raise BuildError(f"missing synth script: {context['synth_script']}")
+    if not Path(context["synth_liberty"]).is_file():
+        raise BuildError(f"missing synth liberty: {context['synth_liberty']}")
+
+
 def main() -> int:
     try:
         args = parse_args()
@@ -1019,27 +1085,21 @@ def main() -> int:
         if not isinstance(steps_cfg, dict):
             raise BuildError(f"'steps' must be a mapping in {BUILD_CONFIG}")
 
-        workflow_name = resolve_workflow_name(args)
+        requested_workflows = resolve_requested_workflows(args)
         if args.debug:
             env_data = get_env_data({"gtkwave"})
             run_debug_mode(env_data)
             return 0
-        if workflow_name not in workflows:
-            raise BuildError(f"workflow '{workflow_name}' is not defined")
+        for workflow_name in requested_workflows:
+            if workflow_name not in workflows:
+                raise BuildError(f"workflow '{workflow_name}' is not defined")
 
         context = get_ip_data(args.ip)
         fv_profile: dict | None = None
-        required_tool_names: set[str]
-        if args.lint or args.compile or args.test or args.regress:
-            required_tool_names = {"verilator"}
-        elif args.synth:
-            required_tool_names = {"yosys"}
-        elif args.fv:
+        if "fv" in requested_workflows:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
-            required_tool_names = {"sby", "yosys", fv_profile["fv_solver"]}
-        else:
-            raise BuildError(f"unsupported workflow '{workflow_name}'")
+        required_tool_names = collect_required_tool_names(requested_workflows, context, fv_profile)
 
         env_data = get_env_data(required_tool_names)
         context.update(env_data)
@@ -1047,62 +1107,70 @@ def main() -> int:
         regression_tests: list[str] = []
 
         if args.test:
-            context = get_test_data(context, args.test, "test")
-        elif args.regress:
+            get_test_data(dict(context), args.test, "test")
+        if args.regress:
             regression_tests = get_regression_tests(context, args.regress)
             context["regress_name"] = args.regress
-        elif args.lint:
-            if not Path(context["lint_waiver"]).is_file():
-                raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
-            context["run_dir"] = context["lint_out_dir"]
-            context["log_file"] = context["lint_log"]
-        elif args.fv:
-            if fv_profile is None:
-                raise BuildError("internal error: missing fv profile")
-            context.update(fv_profile)
-            if not isinstance(context["fv_filelist"], str) or not context["fv_filelist"]:
-                raise BuildError(f"'fv_filelist' must be a non-empty string in ip.{context['ip']}")
-            if not Path(context["fv_script_template"]).is_file():
-                raise BuildError(f"missing fv script template: {context['fv_script_template']}")
-            if not (REPO_ROOT / context["fv_filelist"]).is_file():
-                raise BuildError(f"missing fv filelist: {REPO_ROOT / context['fv_filelist']}")
-            if not Path(context["sby_exe"]).is_file():
-                raise BuildError(f"missing sby executable: {context['sby_exe']}")
-            solver_exe, solver_version = resolve_fv_solver(context)
-            context["fv_solver_exe"] = solver_exe
-            context["fv_solver_version"] = solver_version
-            if not Path(solver_exe).is_file():
-                raise BuildError(f"missing fv solver executable: {solver_exe}")
-            context["run_dir"] = context["fv_out_dir"]
-            context["log_file"] = context["fv_log"]
-        elif args.synth:
-            if "synth_profile" not in context:
-                raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
-            context.update(get_synth_profile(context["synth_profile"]))
-            if not Path(context["synth_script"]).is_file():
-                raise BuildError(f"missing synth script: {context['synth_script']}")
-            if not Path(context["synth_liberty"]).is_file():
-                raise BuildError(f"missing synth liberty: {context['synth_liberty']}")
-            context["run_dir"] = context["synth_out_dir"]
-            context["log_file"] = context["synth_log"]
+        if "lint" in requested_workflows:
+            validate_lint_context(context)
+        if "fv" in requested_workflows:
+            validate_fv_context(context, fv_profile)
+        if "synth" in requested_workflows:
+            validate_synth_context(context)
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 
         completed: set[str] = set()
         print(
-            f"start workflow {workflow_name} ip={context['ip']} tag={context['tag']}",
+            f"start workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
             flush=True,
         )
-        for step_name in workflows[workflow_name]:
-            if step_name == "regress":
-                run_step("compile", steps_cfg, context, completed)
-                run_regression(steps_cfg["regress"], context, regression_tests)
+        for workflow_name in requested_workflows:
+            if workflow_name == "lint":
+                lint_context = dict(context)
+                lint_context["run_dir"] = lint_context["lint_out_dir"]
+                lint_context["log_file"] = lint_context["lint_log"]
+                for step_name in workflows[workflow_name]:
+                    run_step(step_name, steps_cfg, lint_context, completed)
+                continue
+            if workflow_name == "fv":
+                fv_context = dict(context)
+                fv_context["run_dir"] = fv_context["fv_out_dir"]
+                fv_context["log_file"] = fv_context["fv_log"]
+                for step_name in workflows[workflow_name]:
+                    run_step(step_name, steps_cfg, fv_context, completed)
+                continue
+            if workflow_name == "synth":
+                synth_context = dict(context)
+                synth_context["run_dir"] = synth_context["synth_out_dir"]
+                synth_context["log_file"] = synth_context["synth_log"]
+                for step_name in workflows[workflow_name]:
+                    run_step(step_name, steps_cfg, synth_context, completed)
+                continue
+            if workflow_name == "compile":
+                compile_context = dict(context)
+                compile_context["run_dir"] = compile_context["compile_dir"]
+                compile_context["log_file"] = resolve_path(
+                    apply_template(compile_context["output_layout"]["compile_log"], compile_context)
+                )
+                for step_name in workflows[workflow_name]:
+                    run_step(step_name, steps_cfg, compile_context, completed)
+                continue
+            if workflow_name == "test":
+                test_context = get_test_data(dict(context), args.test, "test")
+                for step_name in workflows[workflow_name]:
+                    run_step(step_name, steps_cfg, test_context, completed)
+                continue
+            if workflow_name == "regress":
+                regress_context = dict(context)
+                regress_context["regress_name"] = args.regress
+                run_step("compile", steps_cfg, regress_context, completed)
+                run_regression(steps_cfg["regress"], regress_context, regression_tests)
                 completed.add("regress")
                 continue
-
-            run_step(step_name, steps_cfg, context, completed)
+            raise BuildError(f"unsupported workflow '{workflow_name}'")
         print(
-            f"done workflow {workflow_name} ip={context['ip']} tag={context['tag']}",
+            f"done workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
             flush=True,
         )
         return 0
