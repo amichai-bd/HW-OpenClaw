@@ -104,8 +104,9 @@ The builder accepts multiple discipline flags in one command and resolves step d
 
 - GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
 - The main CI gate lives in [.github/workflows/ci.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/ci.yml).
-- The current gate runs, per IP, `-lint -fv -synth -regress level_2` on `ubuntu-latest`.
-- The workflow installs the required open-source tools on the runner, sources `. cfg/env.sh`, and uploads the structured `workdir/` outputs as artifacts.
+- The current CI uses explicit `gate-fifo` and `gate-counter` jobs on `ubuntu-latest`.
+- Each job has one plain setup block that installs the required open-source tools, then one explicit builder invocation: `-lint -fv -synth -regress level_2`.
+- The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs as artifacts.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
 
 ## Current flow
