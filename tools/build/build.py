@@ -963,7 +963,8 @@ def get_review_files(subject: str, context: dict) -> list[str]:
             context.get("synth_netlist"),
         ]
     elif subject == "compile":
-        paths = [context.get("log_file"), context.get("binary_path")]
+        compile_log = resolve_path(apply_template(context["output_layout"]["compile_log"], context))
+        paths = [compile_log, context.get("binary_path")]
     elif subject == "simulate":
         paths = [
             context.get("log_file"),
@@ -991,6 +992,8 @@ def get_review_files(subject: str, context: dict) -> list[str]:
 
 
 def step_subject(step_name: str, context: dict) -> str:
+    if step_name == "simulate" and context.get("test_name"):
+        return f"test {context['test_name']} {context['ip']}"
     return f"{step_name} {context['ip']}"
 
 
@@ -1192,7 +1195,6 @@ def run_step(
 
     step_cfg = steps_cfg[step_name]
     subject = step_subject(step_name, context)
-    print_status_line("wait", subject)
     for dependency in get_step_dependencies(step_name, steps_cfg):
         run_step(dependency, steps_cfg, context, completed)
 
@@ -1212,7 +1214,6 @@ def run_step(
 
 def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None:
     regress_subject = f"regress {base_context['regress_name']} {base_context['ip']}"
-    print_status_line("wait", regress_subject)
     start_time = monotonic()
     print_status_line("start", regress_subject)
     if not tests:
@@ -1226,7 +1227,6 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str]) -> None
         test_context = dict(base_context)
         test_context = get_test_data(test_context, test_name, "regress")
         test_subject = f"test {test_name} {base_context['ip']}"
-        print_status_line("wait", test_subject)
         test_context["status_subject"] = test_subject
         test_context["start_time"] = monotonic()
         print_status_line("start", test_subject)
@@ -1442,6 +1442,27 @@ def get_workflow_context(base_context: dict, workflow_name: str, args: argparse.
     raise BuildError(f"unsupported workflow '{workflow_name}'")
 
 
+def announce_step_tree(
+    step_name: str,
+    steps_cfg: dict,
+    context: dict,
+    announced: set[str],
+) -> None:
+    if step_name in announced:
+        return
+    for dependency in get_step_dependencies(step_name, steps_cfg):
+        announce_step_tree(dependency, steps_cfg, context, announced)
+    print_status_line("wait", step_subject(step_name, context))
+    announced.add(step_name)
+
+
+def announce_regression(base_context: dict, tests: list[str]) -> None:
+    regress_subject = f"regress {base_context['regress_name']} {base_context['ip']}"
+    print_status_line("wait", regress_subject)
+    for test_name in tests:
+        print_status_line("wait", f"test {test_name} {base_context['ip']}")
+
+
 def main() -> int:
     try:
         args = parse_args()
@@ -1528,7 +1549,6 @@ def main() -> int:
             print(f"resolved command: {build_resolved_command(args)}", flush=True)
         print_status_line("wait", workflow_subject)
         print_status_line("start", workflow_subject)
-        run_step("prepare", steps_cfg, context, completed)
 
         workflow_dependencies, workflow_closures = collect_workflow_dependencies(
             requested_workflows,
@@ -1539,6 +1559,18 @@ def main() -> int:
             workflow_name: get_workflow_context(context, workflow_name, args)
             for workflow_name in requested_workflows
         }
+        compile_context = get_workflow_context(context, "compile", args)
+        announced_steps: set[str] = set()
+        announce_step_tree("prepare", steps_cfg, context, announced_steps)
+        for workflow_name in requested_workflows:
+            if workflow_name == "regress":
+                announce_step_tree("compile", steps_cfg, compile_context, announced_steps)
+                announce_regression(workflow_contexts[workflow_name], regression_tests)
+                continue
+            for step_name in workflows[workflow_name]:
+                announce_step_tree(step_name, steps_cfg, workflow_contexts[workflow_name], announced_steps)
+
+        run_step("prepare", steps_cfg, context, completed)
         workflow_futures: dict[str, concurrent.futures.Future[None]] = {}
 
         def execute_workflow(workflow_name: str) -> None:
@@ -1551,10 +1583,13 @@ def main() -> int:
 
             workflow_context = workflow_contexts[workflow_name]
             if workflow_name == "regress":
-                run_step("compile", steps_cfg, workflow_context, workflow_completed)
+                run_step("compile", steps_cfg, compile_context, workflow_completed)
                 run_regression(steps_cfg["regress"], workflow_context, regression_tests)
                 return
 
+            if workflow_name == "test":
+                run_step("simulate", steps_cfg, workflow_context, workflow_completed)
+                return
             for step_name in workflows[workflow_name]:
                 run_step(step_name, steps_cfg, workflow_context, workflow_completed)
 
