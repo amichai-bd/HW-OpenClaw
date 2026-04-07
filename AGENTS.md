@@ -147,7 +147,9 @@ src/dv/<ip>/
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
-- The standard builder flows include `build -ip <ip> -lint`, `-fv`, `-synth`, `-compile`, `-test <test>`, `-regress <regression>`, and `-debug`.
+- The standard builder entrypoint supports combining multiple discipline flags in one command, for example `build -ip <ip> -lint -fv -synth -regress <regression>` or `build -ip <ip> -compile -test <test>`.
+- Shared dependencies such as generated filelists and compile should run once per invocation when multiple requested disciplines need them.
+- `-debug` should remain a standalone mode, and `-test` and `-regress` should remain mutually exclusive in a single invocation.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
 - Formal flow should emit both raw SBY outputs and a derived `fv_summary.yaml` artifact under `workdir/<tag>/<ip>/fv/`.
 - Synthesis flow should emit both raw reports and a derived `synth_summary.yaml` artifact under `workdir/<tag>/<ip>/synth/`.
