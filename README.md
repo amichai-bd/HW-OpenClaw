@@ -112,7 +112,10 @@ The builder accepts multiple discipline flags in one command and resolves step d
 ## Current flow
 
 - Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
-- `tools/build/build.yaml` defines step dependencies explicitly through `depends_on`, and the builder uses that graph to run independent disciplines in parallel when they do not depend on one another.
+- `tools/build/build.yaml` is organized as declarative `targets` and `steps`.
+- Targets declare root steps, tool requirements, optional selectors, and target-local context overlays.
+- Steps declare `depends_on`, commands or actions, display names, and review artifacts.
+- The Python builder resolves the selected targets, computes the dependency graph from `depends_on`, and runs independent disciplines in parallel when they do not depend on one another.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current formal flow is selected through `cfg/fv.yaml`.
