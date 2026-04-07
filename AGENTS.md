@@ -150,6 +150,8 @@ src/dv/<ip>/
 - The standard builder entrypoint supports combining multiple discipline flags in one command, for example `build -ip <ip> -lint -fv -synth -regress <regression>` or `build -ip <ip> -compile -test <test>`.
 - Shared dependencies such as generated filelists and compile should run once per invocation when multiple requested disciplines need them.
 - `-debug` should remain a standalone mode, and `-test` and `-regress` should remain mutually exclusive in a single invocation.
+- GitHub Actions gates should invoke the same `build` entrypoint and repository YAML config used locally rather than re-encoding discipline logic in workflow YAML.
+- GitHub-hosted runner setup may install required open-source tools in the workflow itself. Self-hosted runner registration, labels, and machine provisioning are external admin tasks, not repository-discovered behavior.
 - Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
 - Formal flow should emit both raw SBY outputs and a derived `fv_summary.yaml` artifact under `workdir/<tag>/<ip>/fv/`.
 - Synthesis flow should emit both raw reports and a derived `synth_summary.yaml` artifact under `workdir/<tag>/<ip>/synth/`.
