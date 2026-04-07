@@ -14,18 +14,18 @@ workflows:
 
 steps:
   prepare:
-    deps: []
+    depends_on: []
     commands:
       - action: prepare_filelists
   lint:
-    deps:
+    depends_on:
       - prepare
     commands:
       - cmd: mkdir -p {lint_out_dir}
       - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
         log: "{log_file}"
   fv:
-    deps:
+    depends_on:
       - prepare
     commands:
       - action: prepare_fv_config
@@ -34,7 +34,7 @@ steps:
         log: "{log_file}"
       - action: prepare_fv_summary
   synth:
-    deps:
+    depends_on:
       - prepare
     commands:
       - action: prepare_synth_script
@@ -43,21 +43,21 @@ steps:
         log: "{log_file}"
       - action: prepare_synth_summary
   compile:
-    deps:
+    depends_on:
       - prepare
     commands:
       - cmd: mkdir -p {compile_dir}
       - cmd: cd {compile_dir} && {verilator_exe} -Wall --binary --top-module {top_module} {verilator_trace_flag} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
         log: "{log_file}"
   simulate:
-    deps:
+    depends_on:
       - compile
     commands:
       - cmd: mkdir -p {run_dir}
       - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
         log: "{log_file}"
   regress:
-    deps:
+    depends_on:
       - compile
     commands:
       - cmd: mkdir -p {run_dir}

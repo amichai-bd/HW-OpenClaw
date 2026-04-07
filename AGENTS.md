@@ -80,6 +80,7 @@
 - Repository tools must treat YAML files as the source of truth.
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
 - If a tool needs build steps, it must read them from the tool YAML file.
+- Builder step dependency order and parallelism should be expressed in the tool YAML through explicit `depends_on` fields rather than hardcoded sequencing in Python.
 - If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
 - Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
 - The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should stay agnostic and only materialize the YAML-defined exports and PATH updates.

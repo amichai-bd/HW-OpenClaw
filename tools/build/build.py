@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import re
@@ -533,6 +534,75 @@ def normalize_command(command: str | dict) -> tuple[str, str | None]:
     raise BuildError("command entries must be strings or mappings with 'cmd'")
 
 
+def get_step_dependencies(step_name: str, steps_cfg: dict) -> list[str]:
+    if step_name not in steps_cfg:
+        raise BuildError(f"unknown build step '{step_name}'")
+    step_cfg = steps_cfg[step_name]
+    depends_on = step_cfg.get("depends_on")
+    if depends_on is None:
+        depends_on = step_cfg.get("deps", [])
+    if not isinstance(depends_on, list):
+        raise BuildError(f"'depends_on' must be a list for step '{step_name}'")
+    return list(depends_on)
+
+
+def collect_step_closure(
+    step_name: str,
+    steps_cfg: dict,
+    memo: dict[str, set[str]],
+    active: set[str] | None = None,
+) -> set[str]:
+    if step_name in memo:
+        return memo[step_name]
+    if active is None:
+        active = set()
+    if step_name in active:
+        raise BuildError(f"cyclic step dependency detected at '{step_name}'")
+    active.add(step_name)
+    closure = {step_name}
+    for dependency in get_step_dependencies(step_name, steps_cfg):
+        closure.update(collect_step_closure(dependency, steps_cfg, memo, active))
+    active.remove(step_name)
+    memo[step_name] = closure
+    return closure
+
+
+def collect_workflow_step_closure(workflow_name: str, workflows: dict, steps_cfg: dict, memo: dict[str, set[str]]) -> set[str]:
+    closure: set[str] = set()
+    for step_name in workflows[workflow_name]:
+        closure.update(collect_step_closure(step_name, steps_cfg, memo))
+    return closure
+
+
+def collect_workflow_dependencies(requested_workflows: list[str], workflows: dict, steps_cfg: dict) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    step_to_workflow: dict[str, str] = {}
+    for workflow_name, workflow_steps in workflows.items():
+        if not isinstance(workflow_steps, list):
+            raise BuildError(f"workflow '{workflow_name}' must be a list of steps")
+        for step_name in workflow_steps:
+            if step_name in step_to_workflow and step_to_workflow[step_name] != workflow_name:
+                raise BuildError(f"step '{step_name}' is assigned to multiple workflows")
+            step_to_workflow[step_name] = workflow_name
+
+    memo: dict[str, set[str]] = {}
+    workflow_closures = {
+        workflow_name: collect_workflow_step_closure(workflow_name, workflows, steps_cfg, memo)
+        for workflow_name in requested_workflows
+    }
+
+    requested_set = set(requested_workflows)
+    workflow_dependencies: dict[str, set[str]] = {}
+    for workflow_name in requested_workflows:
+        dependencies: set[str] = set()
+        for step_name in workflows[workflow_name]:
+            for dependency_step in collect_step_closure(step_name, steps_cfg, memo):
+                dependency_workflow = step_to_workflow.get(dependency_step)
+                if dependency_workflow and dependency_workflow != workflow_name and dependency_workflow in requested_set:
+                    dependencies.add(dependency_workflow)
+        workflow_dependencies[workflow_name] = dependencies
+    return workflow_dependencies, workflow_closures
+
+
 def resolve_filelist_entry(entry: str, context: dict) -> str:
     replaced = entry.replace(context["model_root_var"], context["repo_root"])
     return str(Path(replaced).resolve())
@@ -902,7 +972,7 @@ def run_step(
         raise BuildError(f"unknown build step '{step_name}'")
 
     step_cfg = steps_cfg[step_name]
-    for dependency in step_cfg.get("deps", []):
+    for dependency in get_step_dependencies(step_name, steps_cfg):
         run_step(dependency, steps_cfg, context, completed)
 
     print(f"start {step_name}", flush=True)
@@ -1102,6 +1172,34 @@ def validate_synth_context(context: dict) -> None:
         raise BuildError(f"missing synth liberty: {context['synth_liberty']}")
 
 
+def get_workflow_context(base_context: dict, workflow_name: str, args: argparse.Namespace) -> dict:
+    context = dict(base_context)
+    if workflow_name == "lint":
+        context["run_dir"] = context["lint_out_dir"]
+        context["log_file"] = context["lint_log"]
+        return context
+    if workflow_name == "fv":
+        context["run_dir"] = context["fv_out_dir"]
+        context["log_file"] = context["fv_log"]
+        return context
+    if workflow_name == "synth":
+        context["run_dir"] = context["synth_out_dir"]
+        context["log_file"] = context["synth_log"]
+        return context
+    if workflow_name == "compile":
+        context["run_dir"] = context["compile_dir"]
+        context["log_file"] = resolve_path(
+            apply_template(context["output_layout"]["compile_log"], context)
+        )
+        return context
+    if workflow_name == "test":
+        return get_test_data(context, args.test, "test")
+    if workflow_name == "regress":
+        context["regress_name"] = args.regress
+        return context
+    raise BuildError(f"unsupported workflow '{workflow_name}'")
+
+
 def main() -> int:
     try:
         args = parse_args()
@@ -1154,50 +1252,41 @@ def main() -> int:
             f"start workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
             flush=True,
         )
-        for workflow_name in requested_workflows:
-            if workflow_name == "lint":
-                lint_context = dict(context)
-                lint_context["run_dir"] = lint_context["lint_out_dir"]
-                lint_context["log_file"] = lint_context["lint_log"]
-                for step_name in workflows[workflow_name]:
-                    run_step(step_name, steps_cfg, lint_context, completed)
-                continue
-            if workflow_name == "fv":
-                fv_context = dict(context)
-                fv_context["run_dir"] = fv_context["fv_out_dir"]
-                fv_context["log_file"] = fv_context["fv_log"]
-                for step_name in workflows[workflow_name]:
-                    run_step(step_name, steps_cfg, fv_context, completed)
-                continue
-            if workflow_name == "synth":
-                synth_context = dict(context)
-                synth_context["run_dir"] = synth_context["synth_out_dir"]
-                synth_context["log_file"] = synth_context["synth_log"]
-                for step_name in workflows[workflow_name]:
-                    run_step(step_name, steps_cfg, synth_context, completed)
-                continue
-            if workflow_name == "compile":
-                compile_context = dict(context)
-                compile_context["run_dir"] = compile_context["compile_dir"]
-                compile_context["log_file"] = resolve_path(
-                    apply_template(compile_context["output_layout"]["compile_log"], compile_context)
-                )
-                for step_name in workflows[workflow_name]:
-                    run_step(step_name, steps_cfg, compile_context, completed)
-                continue
-            if workflow_name == "test":
-                test_context = get_test_data(dict(context), args.test, "test")
-                for step_name in workflows[workflow_name]:
-                    run_step(step_name, steps_cfg, test_context, completed)
-                continue
+        run_step("prepare", steps_cfg, context, completed)
+
+        workflow_dependencies, workflow_closures = collect_workflow_dependencies(
+            requested_workflows,
+            workflows,
+            steps_cfg,
+        )
+        workflow_contexts = {
+            workflow_name: get_workflow_context(context, workflow_name, args)
+            for workflow_name in requested_workflows
+        }
+        workflow_futures: dict[str, concurrent.futures.Future[None]] = {}
+
+        def execute_workflow(workflow_name: str) -> None:
+            for dependency_workflow in sorted(workflow_dependencies[workflow_name]):
+                workflow_futures[dependency_workflow].result()
+
+            workflow_completed = {"prepare"}
+            for dependency_workflow in workflow_dependencies[workflow_name]:
+                workflow_completed.update(workflow_closures[dependency_workflow])
+
+            workflow_context = workflow_contexts[workflow_name]
             if workflow_name == "regress":
-                regress_context = dict(context)
-                regress_context["regress_name"] = args.regress
-                run_step("compile", steps_cfg, regress_context, completed)
-                run_regression(steps_cfg["regress"], regress_context, regression_tests)
-                completed.add("regress")
-                continue
-            raise BuildError(f"unsupported workflow '{workflow_name}'")
+                run_step("compile", steps_cfg, workflow_context, workflow_completed)
+                run_regression(steps_cfg["regress"], workflow_context, regression_tests)
+                return
+
+            for step_name in workflows[workflow_name]:
+                run_step(step_name, steps_cfg, workflow_context, workflow_completed)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(requested_workflows)) as executor:
+            for workflow_name in requested_workflows:
+                workflow_futures[workflow_name] = executor.submit(execute_workflow, workflow_name)
+            for workflow_name in requested_workflows:
+                workflow_futures[workflow_name].result()
         print(
             f"done workflow {','.join(requested_workflows)} ip={context['ip']} tag={context['tag']}",
             flush=True,
