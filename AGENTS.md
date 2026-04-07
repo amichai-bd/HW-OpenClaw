@@ -71,6 +71,8 @@
 - Module and file names should match, and both must be lowercase.
 - Parameter names must be uppercase.
 - Signal names should be lowercase with underscores.
+- Use `always_comb` for combinational logic and `always_ff` for sequential logic. Do not use plain `always` blocks.
+- Do not combine `logic` declarations with inline assignment or initialization. Keep declarations separate from behavioral assignment.
 - Avoid explicit non-blocking assignment style in favor of macros when that rule is introduced later.
 
 ## Tool and config rules
@@ -85,6 +87,7 @@
 - User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
 - Formal-specific collateral should live under `src/fv/`, not under `rtl/`, `dv/`, or `syn/`.
 - Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
+- Formal collateral for each IP should follow the split `code/`, `properties/`, and `proofs/`, with shared assumptions and scripts under `src/fv/common/`.
 - Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
 - Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
 - Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
@@ -96,6 +99,7 @@
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 - RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
 - Formal runs should emit a machine-readable summary artifact derived from the raw SBY run outputs so automation can consume stable data without scraping SBY text logs.
+- Different IPs may select different formal profiles in `cfg/ip.yaml`. Use full proofs where tractable and bounded safety profiles where state-space or memory complexity makes that the more honest first step.
 - The initial synthesis flow is a generic Yosys foundation flow, not a signoff flow. Synthesis warnings from generic mapping should be captured in report artifacts under `workdir/<tag>/<ip>/synth/`, not hidden.
 - Synthesis runs should also emit a machine-readable summary artifact derived from the raw reports so automation can consume stable data without scraping Yosys text logs.
 

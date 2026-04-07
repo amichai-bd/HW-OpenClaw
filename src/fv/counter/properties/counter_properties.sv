@@ -1,18 +1,17 @@
-module counter_fv (
-    input logic clk,
-    input logic inc,
-    input logic dec
+module counter_properties #(
+    parameter int WIDTH = 4
+) (
+    input logic             clk,
+    input logic             rst_n,
+    input logic             f_past_valid,
+    input logic             inc,
+    input logic             dec,
+    input logic [WIDTH-1:0] count,
+    input logic             at_max,
+    input logic             at_zero
 );
 
-    localparam int WIDTH = 4;
     localparam logic [WIDTH-1:0] MAX_VALUE = {WIDTH{1'b1}};
-
-    logic rst_n;
-    logic [WIDTH-1:0] count;
-    logic at_max;
-    logic at_zero;
-    logic f_past_valid = 1'b0;
-    logic [1:0] f_reset_cycles = 2'b00;
 
     function automatic logic [WIDTH-1:0] expected_count(
         input logic [WIDTH-1:0] prior_count,
@@ -38,38 +37,15 @@ module counter_fv (
         end
     endfunction
 
-    counter #(
-        .WIDTH(WIDTH)
-    ) dut (
-        .clk(clk),
-        .rst_n(rst_n),
-        .inc(inc),
-        .dec(dec),
-        .count(count),
-        .at_max(at_max),
-        .at_zero(at_zero)
-    );
-
-    always @(*) begin
-        rst_n = f_reset_cycles[1];
-    end
-
-    always @(posedge clk) begin
-        f_past_valid <= 1'b1;
-        if (!f_reset_cycles[1]) begin
-            f_reset_cycles <= f_reset_cycles + 1'b1;
-        end
-
+    always_ff @(posedge clk) begin
         assert(at_zero == (count == '0));
         assert(at_max == (count == MAX_VALUE));
 
-        if (!f_past_valid) begin
-            assert(!rst_n);
-        end else if (!$past(rst_n)) begin
+        if (f_past_valid && !$past(rst_n)) begin
             assert(count == '0);
             assert(at_zero);
             assert(!at_max);
-        end else begin
+        end else if (f_past_valid && $past(rst_n)) begin
             assert(count == expected_count($past(count), $past(inc), $past(dec)));
         end
 

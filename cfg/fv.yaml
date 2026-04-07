@@ -12,3 +12,12 @@ profiles:
     engine: smtbmc
     solver: z3
     multiclock: false
+  bounded_safety:
+    description: bounded safety check using smtbmc and z3 for stateful IPs
+    script: prove
+    mode: bmc
+    depth: 10
+    expect: pass
+    engine: smtbmc
+    solver: z3
+    multiclock: false

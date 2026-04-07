@@ -39,6 +39,13 @@ ip:
   fifo:
     rtl_filelist: src/rtl/fifo/filelist_rtl_fifo.f
     rtl_module: fifo
+    fv_profile: bounded_safety
+    fv_top: fifo_prove
+    fv_sources:
+      - src/fv/common/assumptions/fv_reset_ctrl.sv
+      - src/fv/fifo/code/fifo_fv_env.sv
+      - src/fv/fifo/properties/fifo_properties.sv
+      - src/fv/fifo/proofs/fifo_prove.sv
     synth_profile: generic_cmos
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
@@ -55,9 +62,12 @@ ip:
     rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
     rtl_module: counter
     fv_profile: basic_prove
-    fv_top: counter_fv
+    fv_top: counter_prove
     fv_sources:
-      - src/fv/counter/code/counter_fv.sv
+      - src/fv/common/assumptions/fv_reset_ctrl.sv
+      - src/fv/counter/code/counter_fv_env.sv
+      - src/fv/counter/properties/counter_properties.sv
+      - src/fv/counter/proofs/counter_prove.sv
     synth_profile: generic_cmos
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f

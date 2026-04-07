@@ -47,12 +47,16 @@ module fifo #(
         if (push_ok) begin
             mem_next[wr_ptr] = din;
             wr_ptr_next = wr_ptr + 1'b1;
-            count_next   = count + 1'b1;
         end
 
         if (pop_ok) begin
             dout_next  = mem[rd_ptr];
             rd_ptr_next = rd_ptr + 1'b1;
+        end
+
+        if (push_ok && !pop_ok) begin
+            count_next = count + 1'b1;
+        end else if (pop_ok && !push_ok) begin
             count_next  = count - 1'b1;
         end
 

@@ -61,6 +61,7 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
 - Formal-verification collateral should live under `src/fv/`, separate from both `rtl/`, `dv/`, and `syn/`.
 - Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
+- Formal collateral should follow a predictable split: common assumptions/scripts, IP-local environment code, IP-local properties, and IP-local proof wrappers.
 - Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
 - Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
 - Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
@@ -101,6 +102,7 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current formal flow is selected through `cfg/fv.yaml`.
+- Formal profiles are allowed to differ per IP. Simple control IPs can use full `prove`, while stateful data-path IPs can use bounded safety profiles until stronger proofs are practical.
 - Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current synthesis flow is selected through `cfg/synth.yaml`.
 - The active shared synth profile uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
@@ -111,6 +113,8 @@ That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets
 - Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
 - Shared formal source collateral lives under `src/fv/common/`, while formal run outputs go under `workdir/<tag>/<ip>/fv/`.
 - Formal outputs include the generated `.sby` file, the SBY run directory, the formal log, and a derived `fv_summary.yaml` artifact for automation.
+- The current formal collateral split is `src/fv/common/assumptions/`, `src/fv/common/scripts/`, `src/fv/<ip>/code/`, `src/fv/<ip>/properties/`, and `src/fv/<ip>/proofs/`.
+- The current `<IP>` formal flow intentionally proves a reduced parameter point for control behavior, which is a standard way to keep bounded proofs tractable on parameterized stateful designs.
 - Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
 - Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, and a derived `synth_summary.yaml` artifact for automation.
 
