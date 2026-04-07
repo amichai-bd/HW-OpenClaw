@@ -18,6 +18,7 @@ BUILD_CONFIG = REPO_ROOT / "tools" / "build" / "build.yaml"
 IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
 ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
 SYNTH_CONFIG = REPO_ROOT / "cfg" / "synth.yaml"
+FV_CONFIG = REPO_ROOT / "cfg" / "fv.yaml"
 
 
 class BuildError(RuntimeError):
@@ -47,6 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
     parser.add_argument("-lint", action="store_true", help="run lint step")
+    parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", help="run a named test")
@@ -55,12 +57,12 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     requested_modes = sum(
-        [1 if args.lint else 0, 1 if args.synth else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
+        [1 if args.lint else 0, 1 if args.fv else 0, 1 if args.synth else 0, 1 if args.compile else 0, 1 if args.test else 0, 1 if args.regress else 0, 1 if args.debug else 0]
     )
     if requested_modes != 1:
-        raise BuildError("select exactly one of -lint, -synth, -compile, -test, -regress, or -debug")
+        raise BuildError("select exactly one of -lint, -fv, -synth, -compile, -test, -regress, or -debug")
     if not args.debug and not args.ip:
-        raise BuildError("'-ip' is required for -lint, -synth, -compile, -test, or -regress")
+        raise BuildError("'-ip' is required for -lint, -fv, -synth, -compile, -test, or -regress")
     return args
 
 
@@ -101,6 +103,11 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_all_filelist",
             "lint_out_dir",
             "lint_log",
+            "fv_out_dir",
+            "fv_log",
+            "fv_run_dir",
+            "generated_fv_config",
+            "fv_summary_yaml",
             "synth_out_dir",
             "synth_log",
             "generated_synth_script",
@@ -207,7 +214,46 @@ def get_synth_profile(profile_name: str) -> dict:
     }
 
 
-def get_env_data() -> dict:
+def get_fv_profile(profile_name: str) -> dict:
+    fv_root = load_yaml(FV_CONFIG)
+    require_keys(fv_root, ["scripts", "profiles"], str(FV_CONFIG))
+    scripts = fv_root["scripts"]
+    profiles = fv_root["profiles"]
+    if not isinstance(scripts, dict):
+        raise BuildError(f"'scripts' must be a mapping in {FV_CONFIG}")
+    if not isinstance(profiles, dict):
+        raise BuildError(f"'profiles' must be a mapping in {FV_CONFIG}")
+    if profile_name not in profiles:
+        raise BuildError(f"unknown fv profile '{profile_name}'")
+
+    profile = dict(profiles[profile_name])
+    require_keys(
+        profile,
+        ["description", "script", "mode", "depth", "expect", "engine", "solver", "multiclock"],
+        f"profiles.{profile_name}",
+    )
+    script_name = profile["script"]
+    if script_name not in scripts:
+        raise BuildError(f"unknown fv script '{script_name}' for profile '{profile_name}'")
+    script_cfg = scripts[script_name]
+    if not isinstance(script_cfg, dict):
+        raise BuildError(f"'scripts.{script_name}' must be a mapping in {FV_CONFIG}")
+    require_keys(script_cfg, ["path"], f"scripts.{script_name}")
+
+    return {
+        "fv_profile": profile_name,
+        "fv_profile_description": profile["description"],
+        "fv_script_template": resolve_path(script_cfg["path"]),
+        "fv_mode": profile["mode"],
+        "fv_depth": profile["depth"],
+        "fv_expect": profile["expect"],
+        "fv_engine": profile["engine"],
+        "fv_solver": profile["solver"],
+        "fv_multiclock": bool(profile["multiclock"]),
+    }
+
+
+def get_env_data(required_tool_names: set[str]) -> dict:
     env_root = load_yaml(ENV_CONFIG)
     require_keys(env_root, ["environment"], str(ENV_CONFIG))
     env = env_root["environment"]
@@ -218,11 +264,28 @@ def get_env_data() -> dict:
     tools = env["tools"]
     if not isinstance(tools, dict):
         raise BuildError(f"'tools' must be a mapping in {ENV_CONFIG}")
-    require_keys(tools, ["python3", "verilator", "gtkwave", "yosys"], "environment.tools")
-    require_keys(tools["verilator"], ["exe", "version", "version_cmd", "trace_flag"], "environment.tools.verilator")
-    require_keys(tools["python3"], ["exe", "version", "version_cmd"], "environment.tools.python3")
-    require_keys(tools["gtkwave"], ["exe", "version", "version_cmd"], "environment.tools.gtkwave")
-    require_keys(tools["yosys"], ["exe", "version", "version_cmd"], "environment.tools.yosys")
+    tool_key_requirements = {
+        "python3": ["exe", "version", "version_cmd"],
+        "verilator": ["exe", "version", "version_cmd", "trace_flag"],
+        "gtkwave": ["exe", "version", "version_cmd"],
+        "yosys": ["exe", "version", "version_cmd"],
+        "sby": ["exe", "version", "version_cmd"],
+        "boolector": ["exe", "version", "version_cmd"],
+        "z3": ["exe", "version", "version_cmd"],
+    }
+    for tool_name in required_tool_names:
+        if tool_name not in tool_key_requirements:
+            raise BuildError(f"unsupported tool requirement '{tool_name}'")
+        if tool_name not in tools:
+            raise BuildError(f"missing '{tool_name}' in environment.tools")
+        tool_cfg = tools[tool_name]
+        if not isinstance(tool_cfg, dict):
+            raise BuildError(f"'environment.tools.{tool_name}' must be a mapping in {ENV_CONFIG}")
+        require_keys(
+            tool_cfg,
+            tool_key_requirements[tool_name],
+            f"environment.tools.{tool_name}",
+        )
 
     simulation = env["simulation"]
     if not isinstance(simulation, dict):
@@ -237,20 +300,36 @@ def get_env_data() -> dict:
         "environment.simulation.waveform",
     )
 
-    return {
+    env_data = {
         "model_root": env["model_root"].format(repo_root=str(REPO_ROOT)),
-        "python3_exe": tools["python3"]["exe"],
-        "python3_version": tools["python3"]["version"],
-        "verilator_exe": tools["verilator"]["exe"],
-        "verilator_version": tools["verilator"]["version"],
-        "verilator_trace_flag": tools["verilator"]["trace_flag"] if waveform["enabled"] else "",
-        "gtkwave_exe": tools["gtkwave"]["exe"],
-        "gtkwave_version": tools["gtkwave"]["version"],
-        "yosys_exe": tools["yosys"]["exe"],
-        "yosys_version": tools["yosys"]["version"],
         "waveform_enabled": bool(waveform["enabled"]),
         "waveform_format": waveform["format"],
     }
+    if "python3" in tools:
+        env_data["python3_exe"] = tools["python3"]["exe"]
+        env_data["python3_version"] = tools["python3"]["version"]
+    if "verilator" in tools:
+        env_data["verilator_exe"] = tools["verilator"]["exe"]
+        env_data["verilator_version"] = tools["verilator"]["version"]
+        env_data["verilator_trace_flag"] = (
+            tools["verilator"]["trace_flag"] if waveform["enabled"] else ""
+        )
+    if "gtkwave" in tools:
+        env_data["gtkwave_exe"] = tools["gtkwave"]["exe"]
+        env_data["gtkwave_version"] = tools["gtkwave"]["version"]
+    if "yosys" in tools:
+        env_data["yosys_exe"] = tools["yosys"]["exe"]
+        env_data["yosys_version"] = tools["yosys"]["version"]
+    if "sby" in tools:
+        env_data["sby_exe"] = tools["sby"]["exe"]
+        env_data["sby_version"] = tools["sby"]["version"]
+    if "boolector" in tools:
+        env_data["boolector_exe"] = tools["boolector"]["exe"]
+        env_data["boolector_version"] = tools["boolector"]["version"]
+    if "z3" in tools:
+        env_data["z3_exe"] = tools["z3"]["exe"]
+        env_data["z3_version"] = tools["z3"]["version"]
+    return env_data
 
 
 def apply_template(value: str, context: dict) -> str:
@@ -273,6 +352,10 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
         apply_template(layout["generated_all_filelist"], ip_data)
     )
     ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
+    ip_data["fv_out_dir"] = resolve_path(apply_template(layout["fv_out_dir"], ip_data))
+    ip_data["fv_run_dir"] = resolve_path(apply_template(layout["fv_run_dir"], ip_data))
+    ip_data["generated_fv_config"] = resolve_path(apply_template(layout["generated_fv_config"], ip_data))
+    ip_data["fv_summary_yaml"] = resolve_path(apply_template(layout["fv_summary_yaml"], ip_data))
     ip_data["synth_out_dir"] = resolve_path(apply_template(layout["synth_out_dir"], ip_data))
     ip_data["generated_synth_script"] = resolve_path(
         apply_template(layout["generated_synth_script"], ip_data)
@@ -288,6 +371,7 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["run_dir"] = ip_data["compile_dir"]
     ip_data["log_file"] = resolve_path(apply_template(layout["compile_log"], ip_data))
     ip_data["lint_log"] = resolve_path(apply_template(layout["lint_log"], ip_data))
+    ip_data["fv_log"] = resolve_path(apply_template(layout["fv_log"], ip_data))
     ip_data["synth_log"] = resolve_path(apply_template(layout["synth_log"], ip_data))
     ip_data["tracker_path"] = ""
     return ip_data
@@ -361,6 +445,8 @@ def resolve_workflow_name(args: argparse.Namespace) -> str:
         return "debug"
     if args.lint:
         return "lint"
+    if args.fv:
+        return "fv"
     if args.synth:
         return "synth"
     if args.compile:
@@ -448,6 +534,26 @@ def prepare_synth_script(context: dict) -> None:
         context["generated_rtl_filelist"]
     )
     rendered = source_path.read_text(encoding="utf-8").format(**synth_context)
+    destination_path.write_text(rendered + "\n", encoding="utf-8")
+
+
+def build_fv_source_args(fv_sources: list[str]) -> str:
+    return " ".join(resolve_path(source) for source in fv_sources)
+
+
+def prepare_fv_config(context: dict) -> None:
+    source_path = Path(context["fv_script_template"])
+    if not source_path.is_file():
+        raise BuildError(f"missing fv script template: {source_path}")
+    destination_path = Path(context["generated_fv_config"])
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    fv_context = dict(context)
+    fv_context["yosys_read_verilog_args"] = build_yosys_read_verilog_args(
+        context["generated_rtl_filelist"]
+    )
+    fv_context["fv_source_args"] = build_fv_source_args(context["fv_sources"])
+    fv_context["fv_multiclock_option"] = "multiclock on" if context["fv_multiclock"] else ""
+    rendered = source_path.read_text(encoding="utf-8").format(**fv_context)
     destination_path.write_text(rendered + "\n", encoding="utf-8")
 
 
@@ -584,6 +690,72 @@ def prepare_synth_summary(context: dict) -> None:
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
 
+def prepare_fv_summary(context: dict) -> None:
+    status_path = Path(context["fv_run_dir"]) / "status"
+    if not status_path.is_file():
+        raise BuildError(f"missing fv status file: {status_path}")
+    status_text = status_path.read_text(encoding="utf-8").strip()
+    status_parts = status_text.split()
+    result = status_parts[0] if status_parts else "UNKNOWN"
+    engine_index = int(status_parts[1]) if len(status_parts) > 1 and status_parts[1].isdigit() else None
+    task_index = int(status_parts[2]) if len(status_parts) > 2 and status_parts[2].isdigit() else None
+    trace_vcds = [
+        relativize_path(str(path))
+        for path in sorted(Path(context["fv_run_dir"]).glob("**/trace*.vcd"))
+    ]
+    summary = {
+        "fv": {
+            "ip": context["ip"],
+            "tag": context["tag"],
+            "top": context["fv_top"],
+            "profile": context["fv_profile"],
+            "profile_description": context["fv_profile_description"],
+            "status": {
+                "text": status_text,
+                "result": result,
+                "expected": context["fv_expect"].upper(),
+                "engine_index": engine_index,
+                "task_index": task_index,
+            },
+            "tool": {
+                "sby_exe": context["sby_exe"],
+                "sby_version": context["sby_version"],
+                "yosys_exe": context["yosys_exe"],
+                "yosys_version": context["yosys_version"],
+                "solver_exe": context["fv_solver_exe"],
+                "solver_version": context["fv_solver_version"],
+            },
+            "proof": {
+                "mode": context["fv_mode"],
+                "depth": context["fv_depth"],
+                "engine": context["fv_engine"],
+                "solver": context["fv_solver"],
+                "multiclock": context["fv_multiclock"],
+            },
+            "artifacts": {
+                "config": relativize_path(context["generated_fv_config"]),
+                "log": relativize_path(context["fv_log"]),
+                "run_dir": relativize_path(context["fv_run_dir"]),
+                "status": relativize_path(str(status_path)),
+                "trace_vcds": trace_vcds,
+            },
+            "sources": [relativize_path(resolve_path(source)) for source in context["fv_sources"]],
+        }
+    }
+    summary_path = Path(context["fv_summary_yaml"])
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+
+def resolve_fv_solver(context: dict) -> tuple[str, str]:
+    solver = context["fv_solver"]
+    if solver == "boolector":
+        return context["boolector_exe"], context["boolector_version"]
+    if solver == "z3":
+        return context["z3_exe"], context["z3_version"]
+    raise BuildError(f"unsupported fv solver '{solver}'")
+
+
 def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         print("wait prepare_filelists", flush=True)
@@ -592,6 +764,14 @@ def run_command(command: str | dict, context: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
         print("wait prepare_synth_script", flush=True)
         prepare_synth_script(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_fv_config":
+        print("wait prepare_fv_config", flush=True)
+        prepare_fv_config(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_fv_summary":
+        print("wait prepare_fv_summary", flush=True)
+        prepare_fv_summary(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_summary":
         print("wait prepare_synth_summary", flush=True)
@@ -805,11 +985,6 @@ def run_debug_mode(env_data: dict) -> None:
 def main() -> int:
     try:
         args = parse_args()
-        env_data = get_env_data()
-        if args.debug:
-            run_debug_mode(env_data)
-            return 0
-
         build_cfg = load_yaml(BUILD_CONFIG)
         require_keys(build_cfg, ["workflows", "steps"], str(BUILD_CONFIG))
         workflows = build_cfg["workflows"]
@@ -820,10 +995,28 @@ def main() -> int:
             raise BuildError(f"'steps' must be a mapping in {BUILD_CONFIG}")
 
         workflow_name = resolve_workflow_name(args)
+        if args.debug:
+            env_data = get_env_data({"gtkwave"})
+            run_debug_mode(env_data)
+            return 0
         if workflow_name not in workflows:
             raise BuildError(f"workflow '{workflow_name}' is not defined")
 
         context = get_ip_data(args.ip)
+        fv_profile: dict | None = None
+        required_tool_names: set[str]
+        if args.lint or args.compile or args.test or args.regress:
+            required_tool_names = {"verilator"}
+        elif args.synth:
+            required_tool_names = {"yosys"}
+        elif args.fv:
+            require_keys(context, ["fv_profile", "fv_top", "fv_sources"], f"ip.{context['ip']}")
+            fv_profile = get_fv_profile(context["fv_profile"])
+            required_tool_names = {"sby", "yosys", fv_profile["fv_solver"]}
+        else:
+            raise BuildError(f"unsupported workflow '{workflow_name}'")
+
+        env_data = get_env_data(required_tool_names)
         context.update(env_data)
         context = apply_run_paths(context, resolve_tag(args.tag, context))
         regression_tests: list[str] = []
@@ -838,6 +1031,23 @@ def main() -> int:
                 raise BuildError(f"missing lint waiver file: {context['lint_waiver']}")
             context["run_dir"] = context["lint_out_dir"]
             context["log_file"] = context["lint_log"]
+        elif args.fv:
+            if fv_profile is None:
+                raise BuildError("internal error: missing fv profile")
+            context.update(fv_profile)
+            if not isinstance(context["fv_sources"], list) or not context["fv_sources"]:
+                raise BuildError(f"'fv_sources' must be a non-empty list in ip.{context['ip']}")
+            if not Path(context["fv_script_template"]).is_file():
+                raise BuildError(f"missing fv script template: {context['fv_script_template']}")
+            if not Path(context["sby_exe"]).is_file():
+                raise BuildError(f"missing sby executable: {context['sby_exe']}")
+            solver_exe, solver_version = resolve_fv_solver(context)
+            context["fv_solver_exe"] = solver_exe
+            context["fv_solver_version"] = solver_version
+            if not Path(solver_exe).is_file():
+                raise BuildError(f"missing fv solver executable: {solver_exe}")
+            context["run_dir"] = context["fv_out_dir"]
+            context["log_file"] = context["fv_log"]
         elif args.synth:
             if "synth_profile" not in context:
                 raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")

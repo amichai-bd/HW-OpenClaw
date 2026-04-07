@@ -1,6 +1,8 @@
 workflows:
   lint:
     - lint
+  fv:
+    - fv
   synth:
     - synth
   compile:
@@ -22,6 +24,15 @@ steps:
       - cmd: mkdir -p {lint_out_dir}
       - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
         log: "{log_file}"
+  fv:
+    deps:
+      - prepare
+    commands:
+      - action: prepare_fv_config
+      - cmd: mkdir -p {fv_out_dir}
+      - cmd: cd {fv_out_dir} && {sby_exe} -f -d {fv_run_dir} {generated_fv_config}
+        log: "{log_file}"
+      - action: prepare_fv_summary
   synth:
     deps:
       - prepare

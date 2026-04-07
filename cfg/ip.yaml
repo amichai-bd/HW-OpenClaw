@@ -9,6 +9,11 @@ output_layout:
   generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
   lint_out_dir: workdir/{tag}/{ip}/lint/
   lint_log: workdir/{tag}/{ip}/lint/lint.log
+  fv_out_dir: workdir/{tag}/{ip}/fv/
+  fv_log: workdir/{tag}/{ip}/fv/fv.log
+  fv_run_dir: workdir/{tag}/{ip}/fv/run/
+  generated_fv_config: workdir/{tag}/{ip}/fv/{ip}.sby
+  fv_summary_yaml: workdir/{tag}/{ip}/fv/{ip}_summary.yaml
   synth_out_dir: workdir/{tag}/{ip}/synth/
   synth_log: workdir/{tag}/{ip}/synth/synth.log
   generated_synth_script: workdir/{tag}/{ip}/synth/synth_{ip}.ys
@@ -49,6 +54,10 @@ ip:
   counter:
     rtl_filelist: src/rtl/counter/filelist_rtl_counter.f
     rtl_module: counter
+    fv_profile: basic_prove
+    fv_top: counter_fv
+    fv_sources:
+      - src/fv/counter/code/counter_fv.sv
     synth_profile: generic_cmos
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
