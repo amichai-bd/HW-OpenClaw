@@ -24,6 +24,7 @@ IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
 ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
 SYNTH_CONFIG = REPO_ROOT / "cfg" / "synth.yaml"
 FV_CONFIG = REPO_ROOT / "cfg" / "fv.yaml"
+INTERACTIVE_SELECT = "__interactive_select__"
 
 
 class BuildError(RuntimeError):
@@ -79,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
-    parser.add_argument("-test", help="run a named test")
+    parser.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run a named test")
     parser.add_argument("-regress", help="run a named regression")
     parser.add_argument("-debug", action="store_true", help="list saved waveforms and open one in gtkwave")
     args = parser.parse_args()
@@ -428,10 +429,62 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     return ip_data
 
 
+def load_named_yaml_entries(directory: Path, top_key: str) -> list[str]:
+    if not directory.is_dir():
+        raise BuildError(f"missing directory: {directory}")
+    names: list[str] = []
+    for path in sorted(directory.glob("*.yaml")):
+        data = load_yaml(path)
+        if top_key not in data or not isinstance(data[top_key], dict):
+            continue
+        name = data[top_key].get("name")
+        if isinstance(name, str) and name:
+            names.append(name)
+    return names
+
+
+def get_available_tests(ip_data: dict) -> list[str]:
+    return load_named_yaml_entries(REPO_ROOT / ip_data["test_dir"], "test")
+
+
+def get_available_regressions(ip_data: dict) -> list[str]:
+    return load_named_yaml_entries(REPO_ROOT / ip_data["regression_dir"], "regression")
+
+
+def format_available_names(label: str, names: list[str]) -> str:
+    if not names:
+        return f"available {label}: none"
+    return f"available {label}: {', '.join(names)}"
+
+
+def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
+    if not names:
+        raise BuildError(f"no {kind}s are defined")
+    with PRINT_LOCK:
+        print(f"available {kind}s:", flush=True)
+        for index, name in enumerate(names, start=1):
+            print(f"  [{index}] {name}", flush=True)
+    while True:
+        selection = input(f"select {kind} number (0/q to cancel): ").strip()
+        if selection in {"0", "q", "Q", ""}:
+            return None
+        if not selection.isdigit():
+            with PRINT_LOCK:
+                print("enter a valid number", flush=True)
+            continue
+        index = int(selection)
+        if 1 <= index <= len(names):
+            return names[index - 1]
+        with PRINT_LOCK:
+            print("enter a valid number", flush=True)
+
+
 def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
     test_file = REPO_ROOT / ip_data["test_dir"] / f"{test_name}.yaml"
     if not test_file.is_file():
-        raise BuildError(f"unknown test '{test_name}' for ip '{ip_data['ip']}'")
+        raise BuildError(
+            f"unknown test '{test_name}' for ip '{ip_data['ip']}' | {format_available_names('tests', get_available_tests(ip_data))}"
+        )
 
     test_data = load_yaml(test_file)
     require_keys(test_data, ["test"], str(test_file))
@@ -467,7 +520,7 @@ def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
     regression_file = REPO_ROOT / ip_data["regression_dir"] / f"{regression_name}.yaml"
     if not regression_file.is_file():
         raise BuildError(
-            f"unknown regression '{regression_name}' for ip '{ip_data['ip']}'"
+            f"unknown regression '{regression_name}' for ip '{ip_data['ip']}' | {format_available_names('regressions', get_available_regressions(ip_data))}"
         )
 
     regression_data = load_yaml(regression_file)
@@ -1326,6 +1379,13 @@ def main() -> int:
                 raise BuildError(f"workflow '{workflow_name}' is not defined")
 
         context = get_ip_data(args.ip)
+        if args.test == INTERACTIVE_SELECT:
+            selected_test = prompt_for_named_entry("test", get_available_tests(context))
+            if selected_test is None:
+                with PRINT_LOCK:
+                    print(f"[done-pass {timestamp_text()}] test selection canceled", flush=True)
+                return 0
+            args.test = selected_test
         fv_profile: dict | None = None
         if "fv" in requested_workflows:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
