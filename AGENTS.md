@@ -8,6 +8,16 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 - Read [wiki/Home.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/Home.md) first.
 - Treat the wiki as the version-controlled specification surface of the repository.
 - Use the relevant mirrored wiki path and the methodology pages under `wiki/flows-methods-phylosophy/` as the deeper source of truth.
+- Keep this `AGENTS.md` concise. Repository-wide philosophy, long-form rules, and detailed methodology belong in the wiki.
+
+## Local Agent Email
+
+- This repository may be used by an agent that has the AgentMail inbox `codex-amichaibd@agentmail.to`.
+- Do not assume inbound email reading is configured or required for work in this repository.
+- If the user asks to send email, prefer AgentMail API usage from the local machine rather than embedding secrets in the repository.
+- The local AgentMail API key path is `/home/amichai/.openclaw/secrets/agentmail.env`.
+- Load that file locally when needed and keep it out of commits, logs, generated artifacts, and repository documentation.
+- If email sending fails, report the failure clearly instead of guessing alternate mail paths or providers.
 
 ## Workflow
 
@@ -34,6 +44,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 
 ## Coding Rules
 
+- Keep only short repository-level examples here. The detailed coding rules live in the wiki pages listed below.
 - Module and file names must match and be lowercase.
 - Parameter names must be uppercase.
 - Signal names should be lowercase with underscores.
@@ -71,6 +82,8 @@ For detailed style and methodology, consult:
 - `src/rtl/`, `src/dv/`, `src/fv/`, and `src/syn/` are separate disciplines.
 - Shared reusable collateral belongs under the relevant discipline’s `common/` directory.
 - Cross-IP composition is allowed when architecturally intentional and declared explicitly through config and filelists, not through ad hoc neighbor-tree dependency.
+- The primary product of this repository is the hardware development environment itself.
+- IPs in the repository are mainly vehicles to exercise, validate, and demonstrate that environment rather than the main product identity.
 
 For detailed structure, consult:
 - [repo-structure.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure.md)
@@ -80,6 +93,8 @@ For detailed structure, consult:
 
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
+- `./build` is the required user-facing entry point for simulation, formal, synthesis, and related flows.
+- Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.
 - Shared prerequisites such as generated filelists and compile should run once per invocation when needed.
 - `-debug` remains standalone.
