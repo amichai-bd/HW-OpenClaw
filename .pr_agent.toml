@@ -1,3 +1,8 @@
+[config]
+model = "gpt-5.4-2026-03-05"
+fallback_models = ["o4-mini"]
+reasoning_effort = "high"
+
 [pr_reviewer]
 require_tests_review = true
 require_estimate_effort_to_review = true
