@@ -1,0 +1,41 @@
+name: wiki-sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - wiki/**
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: publish repo wiki to github wiki
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          git clone "https://x-access-token:${TOKEN}@github.com/${REPO}.wiki.git" /tmp/repo-wiki
+          rsync -a --delete --exclude '.git' wiki/ /tmp/repo-wiki/
+          cd /tmp/repo-wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet --exit-code && git diff --cached --quiet --exit-code; then
+            echo "no wiki changes to publish"
+            exit 0
+          fi
+          git add -A
+          if git diff --cached --quiet --exit-code; then
+            echo "no wiki changes to publish"
+            exit 0
+          fi
+          git commit -m "sync wiki from main repo"
+          git push
