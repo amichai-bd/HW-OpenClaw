@@ -44,6 +44,13 @@ The wiki mirrors the `src/` structure at the top level:
 This does not mean every wiki page must be equally detailed.
 It means every source area has an obvious specification home.
 
+For GitHub Wiki browsing, the mirror should stay readable:
+
+- keep strong overview pages at the top level and at the IP level
+- do not create placeholder landing pages for every deep directory unless they carry real specification content
+- prefer fewer content-bearing pages over many thin `index.md` pages that only restate the tree
+- use `_Sidebar.md` and the main overview pages as the normal navigation surface
+
 ## Repository-wide method pages
 
 `wiki/flows-methods-phylosophy/` exists because some rules are broader than one mirrored `src/` directory:
