@@ -123,6 +123,7 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
 - PR-Agent is part of the normal PR gate. Agents are expected to handle PR-Agent findings before merge, just as they would handle review feedback from a human reviewer.
 - The repository secret used by PR-Agent is `OPENAI_KEY`, and the action should stay pinned to an explicit upstream release instead of floating on `@main`.
+- The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
 
 ## Current flow
