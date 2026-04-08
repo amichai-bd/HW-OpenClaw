@@ -1,0 +1,38 @@
+name: issue-reference
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  issue-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: validate issue wiki reference
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+
+          body = os.environ.get("ISSUE_BODY", "") or ""
+          body_lc = body.lower()
+          missing = []
+          if "according to wiki" not in body_lc:
+              missing.append("missing phrase 'according to wiki'")
+          if "wiki/" not in body:
+              missing.append("missing wiki path reference")
+          if missing:
+              print("issue does not satisfy the spec-driven reference rule:", file=sys.stderr)
+              for item in missing:
+                  print(f"- {item}", file=sys.stderr)
+              sys.exit(1)
+          PY

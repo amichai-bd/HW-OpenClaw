@@ -6,9 +6,10 @@ on:
       - opened
       - reopened
       - ready_for_review
+      - synchronize
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -16,12 +17,13 @@ jobs:
     if: github.event.pull_request.user.login == github.repository_owner && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: approve owner pull request
-        uses: actions/github-script@v7
+      - name: approve and enable auto-merge for owner pull request
+        uses: actions/github-script@v8
         with:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
+            const pullRequestId = context.payload.pull_request.node_id;
             const reviews = await github.paginate(
               github.rest.pulls.listReviews,
               { owner, repo, pull_number }
@@ -34,13 +36,40 @@ jobs:
 
             if (botApproved) {
               core.info("github-actions[bot] already approved this pull request");
-              return;
+            } else {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number,
+                event: "APPROVE",
+                body: "Automatically approved for the repository owner by github-actions[bot].",
+              });
             }
 
-            await github.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number,
-              event: "APPROVE",
-              body: "Automatically approved for the repository owner by github-actions[bot].",
-            });
+            try {
+              await github.graphql(
+                `
+                  mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(
+                      input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }
+                    ) {
+                      pullRequest {
+                        number
+                      }
+                    }
+                  }
+                `,
+                { pullRequestId }
+              );
+              core.info("native auto-merge enabled");
+            } catch (error) {
+              const message = String(error.message || error);
+              if (
+                message.includes("already enabled") ||
+                message.includes("is already in the auto-merge queue")
+              ) {
+                core.info("native auto-merge already enabled");
+                return;
+              }
+              throw error;
+            }

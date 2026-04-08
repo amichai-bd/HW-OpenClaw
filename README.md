@@ -116,6 +116,8 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 
 - GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
 - The main CI gate lives in [.github/workflows/ci.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/ci.yml).
+- Spec-reference enforcement runs as separate [issue-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/issue-reference.yml) and [pr-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
+- Owner-authored pull requests are handled by [auto-approve-owner-prs.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/auto-approve-owner-prs.yml), which approves them and enables native GitHub auto-merge once the pull request is ready.
 - The current CI uses one `gate` job on `ubuntu-latest`.
 - That job has one plain setup block that installs the required open-source tools, then two explicit builder invocations: one for `fifo` and one for `counter`, each using `-lint -fv -synth -regress level_2`.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
@@ -151,7 +153,11 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 
 - Start meaningful changes from an issue.
 - Start the issue according to the relevant wiki page or wiki path.
+- Tag the issue with the correct labels for the type of change.
 - Implement each issue on a short-lived branch named with the issue number prefix.
 - Open a pull request before merging to `main`.
 - Reference the relevant wiki path in the pull request as well.
+- After a pull request is opened, keep ownership of it until it is green, merged, and synced back to local `main`.
+- Native GitHub auto-merge is the expected finish path once the required review and required checks are satisfied.
+- The agent that opened the pull request should keep polling its checks and review state, fix issues on the same branch, and stay with it until merge completes.
 - Merge, delete the branch, and sync local workspaces back to `main`.

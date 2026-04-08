@@ -8,6 +8,9 @@
 - Each issue should be implemented on a short-lived branch.
 - Branch names must include the related issue number as a prefix.
 - Open a pull request for review/gating before merging to `main`.
+- Once an agent opens a pull request, the task is not complete until the pull request is green, merged to `main`, and the local workspace is synced back to `main`.
+- Agents are expected to poll their open pull requests, watch CI and review feedback, fix any issue that appears, and keep pushing to the same branch until the pull request is merged.
+- The normal finish state is native GitHub auto-merge after the required approval and required checks are clean.
 - After merge, sync local workspace clones back to `main` before starting the next task.
 - Branches are expected to be short-lived: minutes to hours, not long-running.
 - After merge, delete the branch both on origin and locally.
@@ -161,6 +164,7 @@ src/dv/<ip>/
 
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - Issue templates, pull request templates, and CI should reinforce the spec-driven rule that issues and pull requests reference the relevant wiki path.
+- Issue templates, pull request templates, and CI should also reinforce the GitHub-flow rule that changes close labeled issues, move through a gated pull request, and use native auto-merge when the pull request is ready.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
 - `bin/build` remains the thin delegated launcher under `bin/`.

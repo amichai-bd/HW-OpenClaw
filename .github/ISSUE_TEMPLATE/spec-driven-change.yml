@@ -11,6 +11,8 @@ body:
         The issue text must begin from the wiki and should include wording like:
 
         `according to wiki wiki/<path>/...`
+
+        Apply the correct labels for the issue type, for example `bug`, `enhancement`, or `documentation`.
   - type: textarea
     id: wiki_reference
     attributes:
