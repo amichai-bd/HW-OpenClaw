@@ -12,11 +12,34 @@ The repository is intended to be:
 
 The wiki exists so that repository changes start from a written specification instead of from ad hoc code edits.
 
+## Start here
+
+If you are new to the repository, read these first:
+
+- [spec-driven-development](flows-methods-phylosophy/spec-driven-development.md)
+- [github-flow](flows-methods-phylosophy/github-flow.md)
+- [repo-structure](flows-methods-phylosophy/repo-structure.md)
+- [builder-methodology](flows-methods-phylosophy/builder-methodology.md)
+
+If you are changing code in a discipline, jump directly to:
+
+- [rtl overview](rtl/index.md)
+- [dv overview](dv/index.md)
+- [fv overview](fv/index.md)
+- [syn overview](syn/index.md)
+
+If you are looking for rules rather than structure, use:
+
+- [rtl coding style](flows-methods-phylosophy/rtl-coding-style.md)
+- [dv methodology](flows-methods-phylosophy/dv-methodology.md)
+- [formal methodology](flows-methods-phylosophy/formal-methodology.md)
+- [synthesis methodology](flows-methods-phylosophy/synthesis-methodology.md)
+
 ## How to use this wiki
 
 Before implementation work starts:
 
-1. find the relevant wiki path
+1. find the relevant wiki page
 2. open or update an issue that begins `according to wiki wiki/...`
 3. apply the correct issue labels
 4. decide whether the issue is:
@@ -31,28 +54,20 @@ Before implementation work starts:
 The important rule is not that every issue must change the wiki.
 The important rule is that every issue must begin from the wiki.
 
-The expected end state is a labeled issue, a short-lived pull request branch, green PR/build checks, native GitHub auto-merge, and a local workspace synced back to `main`.
+## Wiki browsing model
 
-## Structure
+This wiki mirrors the source disciplines at the top level, but it is not meant to behave like a recursive file browser.
 
-- `rtl/` mirrors `src/rtl/`
-- `dv/` mirrors `src/dv/`
-- `fv/` mirrors `src/fv/`
-- `syn/` mirrors `src/syn/`
-- `flows-methods-phylosophy/` captures repository-wide methods, structure, coding rules, and development philosophy beyond the direct `src/` mirror
+- the top-level and IP-level pages are the normal entry points
+- the methodology pages under `flows-methods-phylosophy/` carry the repository-wide rules
+- deeper mirrored directories do not need placeholder pages unless they have real spec content to say
 
-## Recommended starting pages
+Use the sidebar and the discipline overview pages first.
 
-- [spec-driven-development](flows-methods-phylosophy/spec-driven-development.md)
-- [repo-structure](flows-methods-phylosophy/repo-structure.md)
-- [builder-methodology](flows-methods-phylosophy/builder-methodology.md)
-- [rtl-coding-style](flows-methods-phylosophy/rtl-coding-style.md)
-- [dv-methodology](flows-methods-phylosophy/dv-methodology.md)
-
-## Mirrored source entry points
+## Main areas
 
 - [rtl](rtl/index.md)
 - [dv](dv/index.md)
 - [fv](fv/index.md)
 - [syn](syn/index.md)
-- [flows-methods-phylosophy](flows-methods-phylosophy/index.md)
+- [flows methods phylosophy](flows-methods-phylosophy/index.md)
