@@ -5,7 +5,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 
 ## Start Here
 
-- Read [wiki/Home.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/Home.md) first.
+- Read [wiki/Home.md](./wiki/Home.md) first.
 - Treat the wiki as the version-controlled specification surface of the repository.
 - Use the relevant mirrored wiki path and the methodology pages under `wiki/flows-methods-phylosophy/` as the deeper source of truth.
 - Keep this `AGENTS.md` concise. Repository-wide philosophy, long-form rules, and detailed methodology belong in the wiki.
@@ -57,10 +57,10 @@ workdir/ generated run outputs
 - Keep non-blocking assignments inside approved macros only. Do not write explicit `<=` assignments in handwritten RTL, DV, or FV code.
 
 For detailed style and methodology, consult:
-- [rtl-coding-style.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style.md)
-- [dv-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology.md)
-- [github-flow.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow.md)
-- [spec-driven-development.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/spec-driven-development.md)
+- [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
+- [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
+- [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
+- [spec-driven-development.md](./wiki/flows-methods-phylosophy/spec-driven-development.md)
 
 ## Tool And Config Rules
 
@@ -87,15 +87,15 @@ For detailed style and methodology, consult:
 - Cross-IP composition is allowed when architecturally intentional and declared explicitly through config and filelists, not through ad hoc neighbor-tree dependency.
 
 For detailed structure, consult:
-- [repo-structure.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure.md)
-- [builder-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology.md)
+- [repo-structure.md](./wiki/flows-methods-phylosophy/repo-structure.md)
+- [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
 
 Useful first reads by topic:
-- structure and navigation: [repo-structure.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure.md)
-- build flow and artifacts: [builder-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology.md)
-- RTL rules: [rtl-coding-style.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style.md)
-- DV rules: [dv-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology.md)
-- process and PR flow: [github-flow.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow.md)
+- structure and navigation: [repo-structure.md](./wiki/flows-methods-phylosophy/repo-structure.md)
+- build flow and artifacts: [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
+- RTL rules: [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
+- DV rules: [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
+- process and PR flow: [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
 
 ## Standard Entry Points
 
