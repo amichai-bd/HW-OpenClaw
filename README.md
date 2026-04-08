@@ -80,25 +80,25 @@ Source the repository environment first:
 Then invoke the builder through the standard repo launcher:
 
 ```sh
-build -ip fifo -compile
-build -ip fifo -lint
-build -ip counter -fv
-build -ip fifo -synth
-build -ip fifo -test sanity
-build -ip fifo -regress level_0
-build -ip fifo -lint -fv -synth -regress level_2
-build -ip counter -compile -test sanity
+./build -ip fifo -compile
+./build -ip fifo -lint
+./build -ip counter -fv
+./build -ip fifo -synth
+./build -ip fifo -test sanity
+./build -ip fifo -regress level_0
+./build -ip fifo -lint -fv -synth -regress level_2
+./build -ip counter -compile -test sanity
 ```
 
 To browse saved waveform runs:
 
 ```sh
-build -debug
+./build -debug
 ```
 
 That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets you pick one to open in GTKWave.
 
-The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
+The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delegates to `bin/build`. The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
 
 ## CI
 
