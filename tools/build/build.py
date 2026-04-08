@@ -32,6 +32,14 @@ class BuildError(RuntimeError):
 
 
 PRINT_LOCK = threading.Lock()
+COLOR_ENABLED = sys.stdout.isatty() and os.environ.get("TERM", "").lower() != "dumb"
+COLOR_RESET = "\033[0m"
+COLOR_BOLD = "\033[1m"
+COLOR_WAIT = "\033[33m"
+COLOR_START = "\033[36m"
+COLOR_PASS = "\033[32m"
+COLOR_FAIL = "\033[31m"
+COLOR_COMMAND = "\033[35m"
 
 
 def load_yaml(path: Path) -> dict:
@@ -937,11 +945,36 @@ def timestamp_text() -> str:
 
 
 def duration_text(start_time: float) -> str:
-    return f"+{(monotonic() - start_time):.1f}s"
+    elapsed = monotonic() - start_time
+    if elapsed < 1.0:
+        return f"+{int(round(elapsed * 1000.0))}ms"
+    return f"+{elapsed:.1f}s"
+
+
+def colorize(text: str, color: str, *, bold: bool = False) -> str:
+    if not COLOR_ENABLED:
+        return text
+    prefix = color
+    if bold:
+        prefix += COLOR_BOLD
+    return f"{prefix}{text}{COLOR_RESET}"
+
+
+def status_prefix(kind: str) -> str:
+    base = f"[{kind} {timestamp_text()}]"
+    if kind == "wait":
+        return colorize(base, COLOR_WAIT, bold=True)
+    if kind == "start":
+        return colorize(base, COLOR_START, bold=True)
+    if kind == "done-pass":
+        return colorize(base, COLOR_PASS, bold=True)
+    if kind == "done-fail":
+        return colorize(base, COLOR_FAIL, bold=True)
+    return base
 
 
 def print_status_line(kind: str, subject: str, *, duration: str | None = None) -> None:
-    text = f"[{kind} {timestamp_text()}] {subject}"
+    text = f"{status_prefix(kind)} {subject}"
     if duration:
         text += f" {duration}"
     with PRINT_LOCK:
@@ -952,6 +985,28 @@ def print_review_files(paths: list[str]) -> None:
     with PRINT_LOCK:
         for index, path_text in enumerate(paths[:3], start=1):
             print(f"  file{index}={display_path(path_text)}", flush=True)
+
+
+def print_review_hint(paths: list[str]) -> None:
+    if not paths:
+        return
+    with PRINT_LOCK:
+        print(f"  review_first={display_path(paths[0])}", flush=True)
+
+
+def print_summary_line(text: str) -> None:
+    with PRINT_LOCK:
+        print(f"  summary={text}", flush=True)
+
+
+def print_command_banner(command_text: str, phase: str) -> None:
+    label = f"[command {timestamp_text()}] {phase}"
+    if COLOR_ENABLED:
+        label = colorize(label, COLOR_COMMAND, bold=True)
+        command_text = colorize(command_text, COLOR_COMMAND)
+    with PRINT_LOCK:
+        print(label, flush=True)
+        print(f"  {command_text}", flush=True)
 
 
 def render_value(template: str, context: dict) -> str:
@@ -1209,20 +1264,26 @@ def run_step(
         for command in step_cfg.get("commands", []):
             run_command(command, context, steps_cfg)
     except BuildError:
+        review_files = get_step_review_files(step_name, steps_cfg, context)
         print_status_line("done-fail", subject, duration=duration_text(start_time))
-        print_review_files(get_step_review_files(step_name, steps_cfg, context))
+        print_review_files(review_files)
+        print_review_hint(review_files)
         raise
+    review_files = get_step_review_files(step_name, steps_cfg, context)
     print_status_line("done-pass", subject, duration=duration_text(start_time))
-    print_review_files(get_step_review_files(step_name, steps_cfg, context))
+    print_review_files(review_files)
     completed.add(step_name)
 
 
 def run_regression(step_cfg: dict, base_context: dict, tests: list[str], steps_cfg: dict) -> None:
     if not tests:
+        print_summary_line("tests=0 passed=0 failed=0")
         return
 
     processes: list[tuple[str, dict, subprocess.Popen[str]]] = []
     simulate_step_cfg = steps_cfg["simulate"]
+    failed_tests: list[str] = []
+    passed_count = 0
 
     for test_name in tests:
         test_context = dict(base_context)
@@ -1262,16 +1323,24 @@ def run_regression(step_cfg: dict, base_context: dict, tests: list[str], steps_c
             if stderr:
                 error_messages.append(stderr)
             error_messages.append(f"test '{test_name}' failed with exit code {process.returncode}")
+            failed_tests.append(test_name)
+            review_files = get_step_review_files("simulate", steps_cfg, test_context)
             print_status_line("done-fail", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
-            print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
+            print_review_files(review_files)
+            print_review_hint(review_files)
         else:
+            passed_count += 1
             print_status_line("done-pass", test_context["status_subject"], duration=duration_text(test_context["start_time"]))
             print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
 
     if error_messages:
+        print_summary_line(
+            f"tests={len(tests)} passed={passed_count} failed={len(failed_tests)} failed_names={','.join(failed_tests)}"
+        )
         for message in error_messages:
             print(message, end="" if message.endswith("\n") else "\n", file=sys.stderr)
         raise BuildError("regression failed")
+    print_summary_line(f"tests={len(tests)} passed={passed_count} failed=0")
 
 
 def parse_debug_entry(wave_path: Path) -> dict | None:
@@ -1478,6 +1547,7 @@ def resolve_target_context(
 
 
 def main() -> int:
+    resolved_command_text = ""
     try:
         args = parse_args()
         if not args.ip and not args.debug:
@@ -1560,8 +1630,8 @@ def main() -> int:
 
         workflow_subject = f"workflow {','.join(requested_targets)} ip={context['ip']} tag={context['tag']}"
         workflow_start = monotonic()
-        with PRINT_LOCK:
-            print(f"resolved command: {build_resolved_command(args)}", flush=True)
+        resolved_command_text = build_resolved_command(args)
+        print_command_banner(resolved_command_text, "resolved")
         print_status_line("wait", workflow_subject)
         print_status_line("start", workflow_subject)
 
@@ -1609,10 +1679,22 @@ def main() -> int:
                 target_futures[target_name].result()
         print_status_line("done-pass", workflow_subject, duration=duration_text(workflow_start))
         print_review_files([context["ip_root"]])
+        print_summary_line(f"targets={','.join(requested_targets)} tag={context['tag']} ip={context['ip']}")
+        print_command_banner(resolved_command_text, "completed")
         return 0
     except BuildError as error:
         with PRINT_LOCK:
-            print(f"[done-fail {timestamp_text()}] workflow {error}", file=sys.stderr, flush=True)
+            prefix = status_prefix("done-fail")
+            print(f"{prefix} workflow {error}", file=sys.stderr, flush=True)
+            if resolved_command_text:
+                banner = f"[command {timestamp_text()}] failed"
+                if COLOR_ENABLED:
+                    banner = colorize(banner, COLOR_COMMAND, bold=True)
+                    command_text = colorize(resolved_command_text, COLOR_COMMAND)
+                else:
+                    command_text = resolved_command_text
+                print(banner, file=sys.stderr, flush=True)
+                print(f"  {command_text}", file=sys.stderr, flush=True)
         return 1
 
 
