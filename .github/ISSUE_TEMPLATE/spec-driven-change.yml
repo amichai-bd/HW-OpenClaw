@@ -1,0 +1,40 @@
+name: spec-driven change
+description: Open a change request that starts from the repository wiki specification.
+title: "[spec] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start the issue from the specification.
+
+        The issue text must begin from the wiki and should include wording like:
+
+        `according to wiki wiki/<path>/...`
+  - type: textarea
+    id: wiki_reference
+    attributes:
+      label: wiki reference
+      description: Reference the relevant wiki page or mirrored wiki path and begin from the specification.
+      placeholder: |
+        according to wiki wiki/rtl/fifo/code/index.md
+        according to wiki wiki/flows-methods-phylosophy/rtl-coding-style.md
+    validations:
+      required: true
+  - type: textarea
+    id: change_request
+    attributes:
+      label: requested change
+      description: Describe the bug, enhancement, refactor, or clarification requested according to the referenced wiki.
+    validations:
+      required: true
+  - type: textarea
+    id: wiki_impact
+    attributes:
+      label: wiki impact
+      description: State whether the wiki is already correct, needs clarification, or needs a spec update.
+      placeholder: |
+        wiki is already correct; src implementation should be fixed
+        wiki is ambiguous and should be clarified together with the implementation
+    validations:
+      required: true

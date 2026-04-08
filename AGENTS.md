@@ -3,6 +3,7 @@
 ## Workflow
 
 - All meaningful changes should start as an issue.
+- Each issue must reference the relevant wiki page or wiki path and begin from the specification using wording such as `according to wiki wiki/...`.
 - Each issue should be implemented on a short-lived branch.
 - Branch names must include the related issue number as a prefix.
 - Open a pull request for review/gating before merging to `main`.
@@ -27,6 +28,13 @@
 ```text
 .
 ├── bin/
+├── wiki/
+│   ├── Home.md
+│   ├── dv/
+│   ├── fv/
+│   ├── rtl/
+│   ├── syn/
+│   └── flows-methods-phylosophy/
 ├── cfg/
 │   ├── env.yaml
 │   ├── fv.yaml
@@ -77,6 +85,10 @@
 
 ## Tool and config rules
 
+- The repository is spec-driven. The repo-root `wiki/` is the version-controlled specification surface.
+- The top-level wiki structure should mirror `src/`, and `wiki/flows-methods-phylosophy/` should capture repository-wide flow, methods, structure, and philosophy.
+- Changes in `src/` must be checked against the relevant wiki path and update the wiki when the intended structure, behavior, or method changes.
+- Changes in `wiki/` must be checked against the corresponding `src/` paths so specification and implementation remain aligned.
 - Repository tools must treat YAML files as the source of truth.
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
 - If a tool needs build steps, it must read them from the tool YAML file.
@@ -147,6 +159,7 @@ src/dv/<ip>/
 ## Repository expectations
 
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
+- Issue templates, pull request templates, and CI should reinforce the spec-driven rule that issues and pull requests reference the relevant wiki path.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
 - `bin/build` remains the thin delegated launcher under `bin/`.

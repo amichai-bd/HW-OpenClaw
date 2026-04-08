@@ -8,6 +8,13 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 .
 ├── bin/
 │   └── build
+├── wiki/
+│   ├── Home.md
+│   ├── dv/
+│   ├── fv/
+│   ├── rtl/
+│   ├── syn/
+│   └── flows-methods-phylosophy/
 ├── cfg/
 │   ├── env.sh
 │   ├── env.yaml
@@ -53,6 +60,11 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 
 ## Design rules
 
+- The repository follows spec-driven development. The repo-root `wiki/` is the version-controlled specification surface.
+- `wiki/` mirrors the `src/` structure at the top level, and `wiki/flows-methods-phylosophy/` captures repository-wide flow, methods, and philosophy.
+- Every issue must reference the relevant wiki path and begin from the specification with wording such as `according to wiki wiki/...`.
+- `src/` changes must be reviewed against the referenced wiki and should update the wiki when the intended structure, behavior, or method changes.
+- wiki changes must also be reviewed against the affected `src/` paths so spec and implementation do not drift.
 - YAML files are the source of truth for tool flow, IP metadata, output layout, and environment data.
 - `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
@@ -138,6 +150,8 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 ## Development workflow
 
 - Start meaningful changes from an issue.
+- Start the issue according to the relevant wiki page or wiki path.
 - Implement each issue on a short-lived branch named with the issue number prefix.
 - Open a pull request before merging to `main`.
+- Reference the relevant wiki path in the pull request as well.
 - Merge, delete the branch, and sync local workspaces back to `main`.
