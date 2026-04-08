@@ -122,6 +122,7 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - That job has one plain setup block that installs the required open-source tools, then two explicit builder invocations: one for `fifo` and one for `counter`, each using `-lint -fv -synth -regress level_2`.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
 - PR-Agent is part of the normal PR gate. Agents are expected to handle PR-Agent findings before merge, just as they would handle review feedback from a human reviewer.
+- PR-Agent review comments are expected to use a structured `Summary` / `Findings` / `Final status` format so blocking findings are easy to distinguish from informational notes.
 - The repository secret used by PR-Agent is `OPENAI_KEY`, and the action should stay pinned to an explicit upstream release instead of floating on `@main`.
 - The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
