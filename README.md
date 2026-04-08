@@ -117,9 +117,11 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
 - The main CI gate lives in [.github/workflows/ci.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/ci.yml).
 - Spec-reference enforcement runs as separate [issue-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/issue-reference.yml) and [pr-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
+- PR review enforcement also runs through [pr-agent](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.pr_agent.toml).
 - The current CI uses one `gate` job on `ubuntu-latest`.
 - That job has one plain setup block that installs the required open-source tools, then two explicit builder invocations: one for `fifo` and one for `counter`, each using `-lint -fv -synth -regress level_2`.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
+- PR-Agent is part of the normal PR gate. Agents are expected to handle PR-Agent findings before merge, just as they would handle review feedback from a human reviewer.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
 
 ## Current flow
@@ -157,6 +159,7 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - Open a pull request before merging to `main`.
 - Reference the relevant wiki path in the pull request as well.
 - After a pull request is opened, keep ownership of it until it is green, merged, and synced back to local `main`.
+- PR-Agent findings are part of the PR ownership model. If PR-Agent raises review findings, address them on the same branch before merge.
 - Native GitHub auto-merge is the expected finish path once the required PR/build checks and conversation-resolution requirements are satisfied.
 - The agent that opened the pull request should keep polling its checks and review state, fix issues on the same branch, and stay with it until merge completes.
 - Merge, delete the branch, and sync local workspaces back to `main`.

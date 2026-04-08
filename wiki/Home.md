@@ -8,6 +8,7 @@ The repository is intended to be:
 - GitHub-flow-driven
 - AI-native and CLI-first
 - structurally predictable across disciplines
+- gated by CI, PR-reference checks, and PR-Agent review before auto-merge
 
 The wiki exists so that repository changes start from a written specification instead of from ad hoc code edits.
 
@@ -24,7 +25,7 @@ Before implementation work starts:
 5. implement the change on a short-lived issue branch
 6. open a gated pull request that also references the wiki
 7. review the final implementation against the wiki before merge
-8. keep ownership of the pull request until CI is green, review issues are fixed, and the pull request is merged
+8. keep ownership of the pull request until CI is green, PR-Agent findings and review issues are fixed, and the pull request is merged
 9. sync the local workspace back to `main`
 
 The important rule is not that every issue must change the wiki.
