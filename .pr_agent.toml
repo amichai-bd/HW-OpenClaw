@@ -31,6 +31,7 @@ extra_instructions = """\
 - Under `Findings`, either write `- none` when there are no actionable findings, or number each finding.
 - For each finding, use this exact field order: `Title`, `Severity`, `Area`, `Evidence`, `Why`, `Required action`.
 - `Severity` must be one of: `blocker`, `major`, `minor`, `note`.
+- Treat `blocker` and `major` as blocking findings. Treat `minor` and `note` as non-blocking findings.
 - `Area` should be one of: `spec`, `rtl`, `dv`, `fv`, `synth`, `builder`, `ci`, `docs`, `process`, or another short repo-relevant area.
 - `Evidence` should include a concrete file path, workflow check, or PR/body reference when possible.
 - `Required action` should state either the specific change needed or `none` if the item is informational only.
