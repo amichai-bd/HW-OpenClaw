@@ -13,9 +13,11 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 ## Local Agent Email
 
 - This repository may be used by an agent that has the AgentMail inbox `codex-amichaibd@agentmail.to`.
+- Outbound email is optional operational support for the agent and is not part of the repository specification surface.
 - Do not assume inbound email reading is configured or required for work in this repository.
 - If the user asks to send email, prefer AgentMail API usage from the local machine rather than embedding secrets in the repository.
 - The local AgentMail API key path is `/home/amichai/.openclaw/secrets/agentmail.env`.
+- Local machine paths in this file are host-specific operational hints, not portable repository configuration.
 - Load that file locally when needed and keep it out of commits, logs, generated artifacts, and repository documentation.
 - If email sending fails, report the failure clearly instead of guessing alternate mail paths or providers.
 
@@ -27,6 +29,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 - Each issue should be implemented on a short-lived branch whose name starts with the issue number.
 - Open a pull request before merging to `main`.
 - Each pull request must reference the relevant wiki path.
+- Pull requests are expected to satisfy the repository gate checks before merge.
 - Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
 - Agents are expected to poll their open pull requests, watch CI and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
