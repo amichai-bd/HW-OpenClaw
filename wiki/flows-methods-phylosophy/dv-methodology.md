@@ -77,3 +77,9 @@ A DV change should be reviewable in terms of:
 - what artifact remains after the run
 
 If that is hard to answer, the DV structure is probably drifting.
+
+Sequential helper logic in DV and FV support code should follow the same repository style as RTL:
+
+- use `always_ff` and `always_comb`
+- keep non-blocking assignments inside approved macros only
+- add or extend shared macros before introducing a new sequential pattern

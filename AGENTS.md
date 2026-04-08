@@ -85,7 +85,7 @@
 - Signal names should be lowercase with underscores.
 - Use `always_comb` for combinational logic and `always_ff` for sequential logic. Do not use plain `always` blocks.
 - Do not combine `logic` declarations with inline assignment or initialization. Keep declarations separate from behavioral assignment.
-- Avoid explicit non-blocking assignment style in favor of macros when that rule is introduced later.
+- Keep non-blocking assignments inside approved macros only. Do not write explicit `<=` assignments in handwritten RTL, DV, or FV code.
 
 ## Tool and config rules
 
