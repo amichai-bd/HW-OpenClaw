@@ -1,178 +1,87 @@
 # AGENTS.md — HW-OpenClaw repository
 
+This file is the concise operating contract for agents working in this repository.
+Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
+
+## Start Here
+
+- Read [wiki/Home.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/Home.md) first.
+- Treat the wiki as the version-controlled specification surface of the repository.
+- Use the relevant mirrored wiki path and the methodology pages under `wiki/flows-methods-phylosophy/` as the deeper source of truth.
+
 ## Workflow
 
-- All meaningful changes should start as an issue.
-- Each issue must reference the relevant wiki page or wiki path and begin from the specification using wording such as `according to wiki wiki/...`.
-- Each issue should be tagged with the correct GitHub labels for the type of change, for example documentation, enhancement, or bug, instead of being left unlabeled.
-- Each issue should be implemented on a short-lived branch.
-- Branch names must include the related issue number as a prefix.
-- Open a pull request for review/gating before merging to `main`.
-- Once an agent opens a pull request, the task is not complete until the pull request is green, merged to `main`, and the local workspace is synced back to `main`.
-- Agents are expected to poll their open pull requests, watch CI and review feedback, fix any issue that appears, and keep pushing to the same branch until the pull request is merged.
-- The normal finish state is native GitHub auto-merge after the required PR checks, build checks, and conversation-resolution requirements are clean.
-- After merge, sync local workspace clones back to `main` before starting the next task.
-- Branches are expected to be short-lived: minutes to hours, not long-running.
-- After merge, delete the branch both on origin and locally.
-- If a commit resolves an issue, mention the issue in the commit message and/or PR body using closing language such as `Closes #<issue>`.
+- All meaningful changes start from an issue.
+- Each issue must begin from the specification with wording such as `according to wiki wiki/...`.
+- Each issue should carry the correct labels for the change type, for example `bug`, `enhancement`, or `documentation`.
+- Each issue should be implemented on a short-lived branch whose name starts with the issue number.
+- Open a pull request before merging to `main`.
+- Each pull request must reference the relevant wiki path.
+- Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
+- Agents are expected to poll their open pull requests, watch CI and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
+- The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
+- After merge, delete the branch locally and on origin.
+- If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.
 
-## Project shape
+## Spec-Driven Rule
 
-- Hardware design / chip design project.
-- SystemVerilog and Verilator are the initial focus.
-- Future work may include debug trackers, formal verification, synthesis, and floorplanning.
+- The repository is spec-driven.
+- The top-level `wiki/` tree mirrors `src/` and is the source of truth for intended structure and behavior.
+- `wiki/flows-methods-phylosophy/` holds repository-wide flow, methods, coding rules, and philosophy.
+- Changes in `src/` must be checked against the relevant wiki path and should update the wiki when intended structure, behavior, or method changes.
+- Changes in `wiki/` must be checked against the corresponding implementation paths so spec and implementation remain aligned.
+- If code reveals ambiguity, missing detail, or the wrong abstraction in the wiki, fix the wiki as part of the same change.
 
-## Communication
+## Coding Rules
 
-- Treat WhatsApp instructions as the source of task direction.
-- Keep repository changes small and task-focused.
-- In project text, avoid spelling out the term FIFO directly; represent the IP name as `<IP>` instead.
-- The repository tree uses the lowercase structure below:
-
-```text
-.
-├── bin/
-├── wiki/
-│   ├── Home.md
-│   ├── dv/
-│   ├── fv/
-│   ├── rtl/
-│   ├── syn/
-│   └── flows-methods-phylosophy/
-├── cfg/
-│   ├── env.yaml
-│   ├── fv.yaml
-│   ├── ip.yaml
-│   └── synth.yaml
-├── src/
-│   ├── dv/
-│   │   └── <ip>/
-│   │       ├── code/
-│   │       │   ├── env/
-│   │       │   ├── if/
-│   │       │   ├── pkg/
-│   │       │   ├── tb/
-│   │       │   └── tests/
-│   │       ├── filelist/
-│   │       └── regressions/
-│   ├── fv/
-│   │   ├── common/
-│   │   │   ├── assumptions/
-│   │   │   └── scripts/
-│   │   └── <ip>/
-│   │       ├── code/
-│   │       ├── proofs/
-│   │       └── properties/
-│   ├── rtl/
-│       ├── common/
-│       │   └── include/
-│       └── <ip>/
-│           ├── code/
-│           ├── lint/
-│           └── filelist_rtl_<ip>.f
-│   └── syn/
-│       └── common/
-│           ├── lib/
-│           └── scripts/
-├── tools/
-└── workdir/
-```
-
-## Coding style and methodology
-
-- Module and file names should match, and both must be lowercase.
+- Module and file names must match and be lowercase.
 - Parameter names must be uppercase.
 - Signal names should be lowercase with underscores.
-- Use `always_comb` for combinational logic and `always_ff` for sequential logic. Do not use plain `always` blocks.
-- Do not combine `logic` declarations with inline assignment or initialization. Keep declarations separate from behavioral assignment.
+- Use `always_comb` for combinational logic and `always_ff` for sequential logic.
+- Do not use plain `always`.
+- Do not combine `logic` declarations with inline initialization or assignment.
 - Keep non-blocking assignments inside approved macros only. Do not write explicit `<=` assignments in handwritten RTL, DV, or FV code.
 
-## Tool and config rules
+For detailed style and methodology, consult:
+- [rtl-coding-style.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style.md)
+- [dv-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology.md)
+- [github-flow.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow.md)
+- [spec-driven-development.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/spec-driven-development.md)
 
-- The repository is spec-driven. The repo-root `wiki/` is the version-controlled specification surface.
-- The top-level wiki structure should mirror `src/`, and `wiki/flows-methods-phylosophy/` should capture repository-wide flow, methods, structure, and philosophy.
-- Changes in `src/` must be checked against the relevant wiki path and update the wiki when the intended structure, behavior, or method changes.
-- Changes in `wiki/` must be checked against the corresponding `src/` paths so specification and implementation remain aligned.
-- Repository tools must treat YAML files as the source of truth.
+## Tool And Config Rules
+
+- YAML files are the source of truth for repository tools.
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
-- If a tool needs build steps, it must read them from the tool YAML file.
-- The builder should treat `tools/build/build.yaml` as a declarative target/step graph: targets select root steps, while steps define `depends_on`, actions or shell commands, display names, and review artifacts.
-- Builder step dependency order and parallelism should be expressed in the tool YAML through explicit `depends_on` fields rather than hardcoded sequencing in Python.
-- If a tool needs IP-specific paths, tops, binaries, tests, regressions, or other repository locations, it must read them from the relevant config YAML file.
-- Repository environment data should live in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
-- The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should stay agnostic and only materialize the YAML-defined exports and PATH updates.
-- Shared formal profile data should live in `cfg/fv.yaml`.
-- Shared synthesis profile data should live in `cfg/synth.yaml`.
-- User-facing repo commands should live under `bin/` as thin launchers, while implementation code should stay under `tools/`.
-- Formal-specific collateral should live under `src/fv/`, not under `rtl/`, `dv/`, or `syn/`.
-- Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
-- Formal collateral for each IP should follow the split `code/`, `properties/`, and `proofs/`, with shared assumptions and scripts under `src/fv/common/`.
-- Formal collateral should use per-IP formal filelists, following the same repository pattern as RTL and DV, instead of enumerating `.sv` sources inline in `cfg/ip.yaml`.
-- Shared RTL includes, macros, and reusable generic collateral should live under `src/rtl/common/`, not under any individual IP directory.
-- Cross-IP composition is allowed when architecturally intentional. Reusable generic building blocks should move to `common/`, while larger IPs may explicitly integrate smaller IPs through declared filelists and config rather than ad hoc dependency on a neighbor IP’s local collateral.
-- Synthesis-specific collateral should live under `src/syn/`, not under `rtl/` or `dv/`.
-- Shared synthesis collateral such as generic libraries and reusable synthesis scripts should live under `src/syn/common/`.
-- IP-level formal selection should live in `cfg/ip.yaml`, while reusable formal profiles and solver metadata should live in `cfg/fv.yaml`.
-- IP-level synthesis selection should live in `cfg/ip.yaml`, while reusable synthesis profiles and technology metadata should live in `cfg/synth.yaml`.
+- If a tool needs build flow definitions, read them from the tool YAML file.
+- The builder should treat `tools/build/build.yaml` as a declarative target/step graph, with dependency order and parallelism expressed through explicit `depends_on` fields.
+- If a tool needs IP-specific paths, tops, tests, regressions, binaries, or output layout, read them from the relevant config YAML file.
+- Repository environment data lives in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
+- The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should only materialize YAML-defined exports and PATH updates.
+- Shared formal profile data lives in `cfg/fv.yaml`.
+- Shared synthesis profile data lives in `cfg/synth.yaml`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
-- RTL lint collateral such as waiver files should live under `src/rtl/<ip>/lint/` next to the RTL code.
-- Formal runs should emit a machine-readable summary artifact derived from the raw SBY run outputs so automation can consume stable data without scraping SBY text logs.
-- Different IPs may select different formal profiles in `cfg/ip.yaml`. Use full proofs where tractable and bounded safety profiles where state-space or memory complexity makes that the more honest first step.
-- The initial synthesis flow is a generic Yosys foundation flow, not a signoff flow. Synthesis warnings from generic mapping should be captured in report artifacts under `workdir/<tag>/<ip>/synth/`, not hidden.
-- Synthesis runs should also emit a machine-readable summary artifact derived from the raw reports so automation can consume stable data without scraping Yosys text logs.
 
-## Standard DV layout
+## Repository Shape
 
-- Each IP DV environment should follow this layout:
+- `bin/` contains thin user-facing launchers.
+- `tools/` contains implementations.
+- `src/rtl/`, `src/dv/`, `src/fv/`, and `src/syn/` are separate disciplines.
+- Shared reusable collateral belongs under the relevant discipline’s `common/` directory.
+- Cross-IP composition is allowed when architecturally intentional and declared explicitly through config and filelists, not through ad hoc neighbor-tree dependency.
 
-```text
-src/dv/<ip>/
-├── code/
-│   ├── tb/
-│   │   └── <ip>_tb.sv
-│   ├── if/
-│   │   └── <ip>_if.sv
-│   ├── pkg/
-│   │   └── <ip>_dv_pkg.sv
-│   ├── env/
-│   │   ├── <ip>_types.sv
-│   │   ├── <ip>_cfg.sv
-│   │   ├── <ip>_generator.sv
-│   │   ├── <ip>_driver.sv
-│   │   ├── <ip>_monitor.sv
-│   │   ├── <ip>_model.sv
-│   │   ├── <ip>_scoreboard.sv
-│   │   ├── <ip>_coverage.sv
-│   │   ├── <ip>_agent.sv
-│   │   ├── <ip>_env.sv
-│   │   └── <ip>_tracker.svh
-│   └── tests/
-├── filelist/
-└── regressions/
-```
+For detailed structure, consult:
+- [repo-structure.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure.md)
+- [builder-methodology.md](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology.md)
 
-- `tb` should stay thin and only own top-level hookup, plusargs, DUT instantiation, and environment construction.
-- `if` should own DUT-facing interface signals, clocking blocks, and modports when needed.
-- `pkg` should gather reusable DV types, configuration helpers, and shared utility functions.
-- `env` should contain the predictable verification component split: generator, driver, monitor, model, scoreboard, coverage, agent, env, and tracker.
-- Test-specific selection should come from YAML and plusargs, not from ad hoc directory discovery or implicit defaults.
+## Standard Entry Points
 
-## Repository expectations
-
-- `README.md` should describe the current repository layout and the standard developer entrypoints.
-- Issue templates, pull request templates, and CI should reinforce the spec-driven rule that issues and pull requests reference the relevant wiki path.
-- Issue templates, pull request templates, and CI should also reinforce the GitHub-flow rule that changes close labeled issues, move through a gated pull request, and use native auto-merge when the pull request is ready.
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
-- `bin/build` remains the thin delegated launcher under `bin/`.
-- The standard builder entrypoint supports combining multiple discipline flags in one command, for example `build -ip <ip> -lint -fv -synth -regress <regression>` or `build -ip <ip> -compile -test <test>`.
-- Shared dependencies such as generated filelists and compile should run once per invocation when multiple requested disciplines need them.
-- `-debug` should remain a standalone mode, and `-test` and `-regress` should remain mutually exclusive in a single invocation.
-- GitHub Actions gates should invoke the same `build` entrypoint and repository YAML config used locally rather than re-encoding discipline logic in workflow YAML.
-- GitHub-hosted runner setup may install required open-source tools in the workflow itself. Self-hosted runner registration, labels, and machine provisioning are external admin tasks, not repository-discovered behavior.
-- Debug flow should prefer structured artifacts already emitted by the builder, including tracker JSON files and VCD waveforms under `workdir/`.
-- Formal flow should emit both raw SBY outputs and a derived `fv_summary.yaml` artifact under `workdir/<tag>/<ip>/fv/`.
-- Synthesis flow should emit both raw reports and a derived `synth_summary.yaml` artifact under `workdir/<tag>/<ip>/synth/`.
+- The builder supports combining multiple discipline flags in one command.
+- Shared prerequisites such as generated filelists and compile should run once per invocation when needed.
+- `-debug` remains standalone.
+- `-test` and `-regress` remain mutually exclusive in a single invocation.
+- GitHub Actions gates should invoke the same repository builder and config used locally rather than re-encoding tool logic in workflow YAML.
