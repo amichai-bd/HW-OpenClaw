@@ -36,6 +36,7 @@ workdir/ generated run outputs
 - Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
 - Agents are expected to poll their open pull requests, watch CI, PR-Agent, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
 - If PR-Agent raises findings or comments, address them before merge. Do not leave PR-Agent findings unresolved and assume the pull request is ready anyway.
+- PR-Agent should answer in the repository-defined structured format from `.pr_agent.toml`. Agents should use that structure to decide what is blocking, what is informational, and what needs a code or doc fix.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
 - After merge, delete the branch locally and on origin.
 - If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.
