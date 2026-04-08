@@ -8,6 +8,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 - Read [wiki/Home.md](./wiki/Home.md) first.
 - Treat the wiki as the version-controlled specification surface of the repository.
 - Use the relevant mirrored wiki path and the methodology pages under `wiki/flows-methods-phylosophy/` as the deeper source of truth.
+- For implementation work, also consult the relevant files under `.codex/rules/`. In this repository, `.codex/rules/` is the condensed execution-facing rules layer derived from the wiki.
 - Keep this `AGENTS.md` concise. Repository-wide philosophy, long-form rules, and detailed methodology belong in the wiki.
 
 ## Quick Orientation
@@ -15,6 +16,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 ```text
 bin/     thin user-facing entrypoints
 cfg/     yaml source of truth for environment and flows
+.codex/  condensed execution-facing agent rules
 src/     implementation by discipline: rtl, dv, fv, syn
 tools/   tool implementations
 wiki/    version-controlled specification surface
@@ -96,6 +98,15 @@ Useful first reads by topic:
 - RTL rules: [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
 - DV rules: [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
 - process and PR flow: [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
+
+Useful `.codex/rules/` files by topic:
+- [README.md](./.codex/rules/README.md)
+- [github-flow.md](./.codex/rules/github-flow.md)
+- [rtl-coding-style.md](./.codex/rules/rtl-coding-style.md)
+- [dv-methodology.md](./.codex/rules/dv-methodology.md)
+- [fv-methodology.md](./.codex/rules/fv-methodology.md)
+- [synthesis-methodology.md](./.codex/rules/synthesis-methodology.md)
+- [builder-methodology.md](./.codex/rules/builder-methodology.md)
 
 ## Standard Entry Points
 

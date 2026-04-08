@@ -6,6 +6,7 @@ The repository uses a predictable mirrored structure so humans and AI agents can
 
 - `src/` owns engineering source collateral
 - `wiki/` owns the written specification
+- `.codex/rules/` owns condensed execution-facing agent rules derived from the wiki
 - `cfg/` owns configuration source of truth
 - `tools/` owns implementation of tooling
 - `bin/` and repo-root entrypoints expose user-facing commands
