@@ -9,9 +9,11 @@ The specification is the version-controlled `wiki/` tree.
 
 - every meaningful change starts from an issue
 - every issue must reference the relevant wiki path
+- every issue should carry the correct labels for the change type
 - implementation should follow the spec instead of inventing behavior ad hoc in code
 - if code reveals ambiguity, missing detail, or a wrong assumption in the wiki, the wiki should be clarified as part of the change
 - if the issue is only an implementation bug under an already-correct spec, `src/` may change without a wiki edit, but the issue must still reference the wiki
+- once the issue becomes a pull request, the agent should keep ownership of it until CI is green, review feedback is resolved, and the pull request merges
 
 ## Change categories
 
@@ -75,3 +77,14 @@ Every change should leave the repository in one of these two states:
 - wiki and implementation were updated together and now match each other
 
 Any other state is drift, and drift should be treated as a process problem.
+
+## Expected completion state
+
+A spec-driven change is only complete when all of the following are true:
+
+- the issue references the relevant wiki path
+- the issue is labeled correctly
+- the pull request references the relevant wiki path
+- required checks are green
+- the pull request is merged through the normal gated GitHub flow, preferably with native auto-merge enabled
+- the local workspace is synced back to `main`

@@ -17,14 +17,20 @@ Before implementation work starts:
 
 1. find the relevant wiki path
 2. open or update an issue that begins `according to wiki wiki/...`
-3. decide whether the issue is:
+3. apply the correct issue labels
+4. decide whether the issue is:
    - an implementation bug under an already-correct spec
    - or a spec clarification / spec change that should update the wiki
-4. make the change in `src/`, `cfg/`, `tools/`, or elsewhere according to the wiki
-5. review the final implementation against the wiki before merge
+5. implement the change on a short-lived issue branch
+6. open a gated pull request that also references the wiki
+7. review the final implementation against the wiki before merge
+8. keep ownership of the pull request until CI is green, review issues are fixed, and the pull request is merged
+9. sync the local workspace back to `main`
 
 The important rule is not that every issue must change the wiki.
 The important rule is that every issue must begin from the wiki.
+
+The expected end state is a labeled issue, a short-lived pull request branch, green CI, native GitHub auto-merge, and a local workspace synced back to `main`.
 
 ## Structure
 
