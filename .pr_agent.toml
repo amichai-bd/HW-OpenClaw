@@ -1,0 +1,24 @@
+[pr_reviewer]
+require_tests_review = true
+require_estimate_effort_to_review = true
+require_security_review = true
+require_ticket_analysis_review = true
+publish_output_no_suggestions = true
+persistent_comment = true
+num_max_findings = 5
+enable_review_labels_effort = true
+enable_review_labels_security = true
+extra_instructions = """\
+- This repository is spec-driven. Review the pull request against the referenced wiki paths first.
+- Treat repo-root `wiki/` as the specification source of truth and `.codex/rules/` as the condensed execution-facing guidance.
+- Check that the pull request body includes the required `according to wiki wiki/...` reference and that the change actually aligns with that referenced spec.
+- Check that implementation changes in `src/` stay aligned with the relevant spec and methodology pages under `wiki/flows-methods-phylosophy/`.
+- Check that repository-wide agent guidance in `AGENTS.md` and `.codex/rules/` stays aligned with the wiki when those files change.
+- For RTL changes, enforce lowercase module and file naming, uppercase parameter naming, `always_comb` and `always_ff` usage, no plain `always`, no inline `logic` initialization, and no explicit handwritten non-blocking assignments outside approved macros.
+- For DV changes, enforce the structured testbench split and thin top-level TB style described in the wiki and `.codex/rules/`.
+- For FV changes, enforce the `code/`, `properties/`, `proofs/` split and explicit filelist/config-driven formal structure.
+- For synthesis changes, enforce the `src/syn/` discipline split, shared `common/` collateral, and config-driven flow/profile selection.
+- For builder and config changes, enforce the YAML-first philosophy. The builder should execute declarative flow from YAML, not invent repository structure or fallback behavior in Python.
+- Call out drift between code, wiki, AGENTS, `.codex/rules/`, issue framing, and PR framing as review findings.
+- Prefer concise, actionable findings over broad commentary.
+"""

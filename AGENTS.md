@@ -32,8 +32,10 @@ workdir/ generated run outputs
 - Open a pull request before merging to `main`.
 - Each pull request must reference the relevant wiki path.
 - Pull requests are expected to satisfy the repository gate checks before merge.
+- Pull requests are also expected to satisfy the PR-Agent review gate before merge.
 - Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
-- Agents are expected to poll their open pull requests, watch CI and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
+- Agents are expected to poll their open pull requests, watch CI, PR-Agent, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
+- If PR-Agent raises findings or comments, address them before merge. Do not leave PR-Agent findings unresolved and assume the pull request is ready anyway.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
 - After merge, delete the branch locally and on origin.
 - If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.
@@ -119,3 +121,4 @@ Useful `.codex/rules/` files by topic:
 - `-debug` remains standalone.
 - `-test` and `-regress` remain mutually exclusive in a single invocation.
 - GitHub Actions gates should invoke the same repository builder and config used locally rather than re-encoding tool logic in workflow YAML.
+- GitHub Actions PR gates should include the PR-Agent review action with repository-specific instructions from the repo-root `.pr_agent.toml`.
