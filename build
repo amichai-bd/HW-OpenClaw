@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+_codex_build_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)
+. "$_codex_build_dir/cfg/env.sh"
+exec "$_codex_build_dir/bin/build" "$@"

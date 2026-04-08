@@ -554,7 +554,7 @@ def get_requested_mode_names(args: argparse.Namespace) -> list[str]:
 
 
 def build_resolved_command(args: argparse.Namespace) -> str:
-    parts = ["build"]
+    parts = ["./build"]
     if args.ip:
         parts.extend(["-ip", args.ip])
     if args.tag:
@@ -1631,7 +1631,7 @@ def main() -> int:
         workflow_subject = f"workflow {','.join(requested_targets)} ip={context['ip']} tag={context['tag']}"
         workflow_start = monotonic()
         resolved_command_text = build_resolved_command(args)
-        print_command_banner(resolved_command_text, "resolved")
+        print_command_banner(resolved_command_text, "resolved_command")
         print_status_line("wait", workflow_subject)
         print_status_line("start", workflow_subject)
 
@@ -1680,14 +1680,14 @@ def main() -> int:
         print_status_line("done-pass", workflow_subject, duration=duration_text(workflow_start))
         print_review_files([context["ip_root"]])
         print_summary_line(f"targets={','.join(requested_targets)} tag={context['tag']} ip={context['ip']}")
-        print_command_banner(resolved_command_text, "completed")
+        print_command_banner(resolved_command_text, "completed_command")
         return 0
     except BuildError as error:
         with PRINT_LOCK:
             prefix = status_prefix("done-fail")
             print(f"{prefix} workflow {error}", file=sys.stderr, flush=True)
             if resolved_command_text:
-                banner = f"[command {timestamp_text()}] failed"
+                banner = f"[command {timestamp_text()}] failed_command"
                 if COLOR_ENABLED:
                     banner = colorize(banner, COLOR_COMMAND, bold=True)
                     command_text = colorize(resolved_command_text, COLOR_COMMAND)

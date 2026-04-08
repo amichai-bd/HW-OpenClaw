@@ -148,7 +148,8 @@ src/dv/<ip>/
 
 - `README.md` should describe the current repository layout and the standard developer entrypoints.
 - The standard shell entrypoint is `. cfg/env.sh`.
-- The standard builder entrypoint is `build` from the repo `bin/` directory after sourcing the environment.
+- The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
+- `bin/build` remains the thin delegated launcher under `bin/`.
 - The standard builder entrypoint supports combining multiple discipline flags in one command, for example `build -ip <ip> -lint -fv -synth -regress <regression>` or `build -ip <ip> -compile -test <test>`.
 - Shared dependencies such as generated filelists and compile should run once per invocation when multiple requested disciplines need them.
 - `-debug` should remain a standalone mode, and `-test` and `-regress` should remain mutually exclusive in a single invocation.
