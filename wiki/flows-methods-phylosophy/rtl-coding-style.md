@@ -20,8 +20,9 @@ RTL should follow a predictable SystemVerilog style that is easy to review, easy
 ## Sequential style
 
 - sequential updates should be structurally obvious
-- repository macro style should wrap the intended non-blocking sequential pattern when that rule applies
-- avoid ad hoc explicit sequential style that drifts between files
+- repository macro style should wrap the intended non-blocking sequential pattern
+- explicit handwritten non-blocking assignments should not appear in RTL, DV, or FV source code
+- if a sequential pattern is needed and no suitable macro exists yet, add or extend the approved macro surface first instead of writing ad hoc `<=`
 
 ## Shared collateral
 

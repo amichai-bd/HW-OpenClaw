@@ -14,6 +14,8 @@ module fifo_fv_env #(
     output logic [$clog2(DEPTH + 1)-1:0] shadow_count
 );
 
+    `include "macros.svh"
+
     localparam int COUNT_W = $clog2(DEPTH + 1);
 
     fifo #(
@@ -40,16 +42,21 @@ module fifo_fv_env #(
         assume(shadow_count == '0);
     end
 
-    always_ff @(posedge clk) begin
+    logic [COUNT_W-1:0] next_shadow_count;
+
+    always_comb begin
+        next_shadow_count = shadow_count;
         if (!rst_n) begin
-            shadow_count <= '0;
+            next_shadow_count = '0;
         end else begin
             if (push && !full && !(pop && !empty)) begin
-                shadow_count <= shadow_count + COUNT_W'(1);
+                next_shadow_count = shadow_count + COUNT_W'(1);
             end else if (pop && !empty && !(push && !full)) begin
-                shadow_count <= shadow_count - COUNT_W'(1);
+                next_shadow_count = shadow_count - COUNT_W'(1);
             end
         end
     end
+
+    `DFF(shadow_count, next_shadow_count)
 
 endmodule
