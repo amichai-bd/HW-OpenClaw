@@ -85,6 +85,6 @@ A spec-driven change is only complete when all of the following are true:
 - the issue references the relevant wiki path
 - the issue is labeled correctly
 - the pull request references the relevant wiki path
-- required checks are green
+- required PR/build checks are green
 - the pull request is merged through the normal gated GitHub flow, preferably with native auto-merge enabled
 - the local workspace is synced back to `main`

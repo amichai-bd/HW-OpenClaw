@@ -30,7 +30,7 @@ Before implementation work starts:
 The important rule is not that every issue must change the wiki.
 The important rule is that every issue must begin from the wiki.
 
-The expected end state is a labeled issue, a short-lived pull request branch, green CI, native GitHub auto-merge, and a local workspace synced back to `main`.
+The expected end state is a labeled issue, a short-lived pull request branch, green PR/build checks, native GitHub auto-merge, and a local workspace synced back to `main`.
 
 ## Structure
 
