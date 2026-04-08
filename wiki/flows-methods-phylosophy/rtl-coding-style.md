@@ -1,13 +1,40 @@
 # rtl coding style
 
-RTL should follow a predictable SystemVerilog style.
+RTL should follow a predictable SystemVerilog style that is easy to review, easy to lint, and easy for tooling to reason about.
 
-- module names and file names must match and remain lowercase
+## Naming
+
+- module names and file names must match
+- module and file names must be lowercase
 - parameter names must be uppercase
 - signal names should be lowercase with underscores
+
+## Structural style
+
 - use `always_comb` for combinational logic
 - use `always_ff` for sequential logic
 - do not use plain `always`
 - do not combine `logic` declarations with inline initialization or assignment
-- non-blocking sequential updates should follow the repository macro style instead of ad hoc explicit `<=` coding when that rule applies
-- shared macros and generic reusable collateral belong under `src/rtl/common/`
+- keep declarations separate from behavioral assignment
+
+## Sequential style
+
+- sequential updates should be structurally obvious
+- repository macro style should wrap the intended non-blocking sequential pattern when that rule applies
+- avoid ad hoc explicit sequential style that drifts between files
+
+## Shared collateral
+
+- shared macros, includes, and generic reusable collateral belong under `src/rtl/common/`
+- IP-local RTL should not depend accidentally on another IP’s local RTL tree
+- cross-IP composition is allowed only when architecturally intentional and declared explicitly
+
+## Review intent
+
+The style rules are not just cosmetic.
+They exist so that:
+
+- RTL intent is easy to parse
+- lint and formal work from consistent structure
+- generated tooling and AI agents can infer the code shape without special-case heuristics
+- code review focuses on behavior and architecture instead of format ambiguity

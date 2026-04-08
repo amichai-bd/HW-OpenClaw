@@ -4,6 +4,7 @@
 
 - All meaningful changes should start as an issue.
 - Each issue must reference the relevant wiki page or wiki path and begin from the specification using wording such as `according to wiki wiki/...`.
+- Each issue should be tagged with the correct GitHub labels for the type of change, for example documentation, enhancement, or bug, instead of being left unlabeled.
 - Each issue should be implemented on a short-lived branch.
 - Branch names must include the related issue number as a prefix.
 - Open a pull request for review/gating before merging to `main`.
