@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
 """Publish the versioned wiki/ tree to the GitHub Wiki git repository.
 
-The GitHub Wiki web UI expects page links in wiki URL form. Markdown in the
-main repository intentionally uses relative ``*.md`` paths so the same files
-render sensibly when browsed under ``wiki/`` on GitHub. This tool:
+Markdown under ``wiki/`` uses normal nested paths (``rtl/index.md``, …) so it is
+easy to browse in the main repository. **GitHub Wiki does not work that way:**
+page identity is the file basename, so many ``index.md`` files collide, and
+links that look like ``folder/page`` or end in ``.md`` often open **raw**
+markdown instead of the wiki renderer.
 
-1. Clones ``https://github.com/<owner>/<repo>.wiki.git`` (or uses ``--output``).
-2. Copies the source ``wiki/`` tree into the clone (excluding ``.git``).
-3. Rewrites internal markdown links to absolute ``https://github.com/.../wiki/...``
-   targets so sidebar, footer, and cross-page navigation work in the Wiki UI.
-4. Writes a generated ``_Footer.md`` that points readers at the source tree.
-5. Commits and pushes when there are changes (CI), unless ``--dry-run``.
+This tool therefore **flattens** the tree when publishing:
 
-Configuration is passed via environment variables for CI:
+1. Clones ``https://github.com/<owner>/<repo>.wiki.git`` (or writes ``--output``).
+2. Emits **one wiki page per source file** at the clone root, using a **unique
+   slug**: relative path with ``/`` replaced by ``-`` (e.g.
+   ``rtl/fifo/index.md`` → ``rtl-fifo-index.md``).
+3. Rewrites internal links to ``https://github.com/<owner>/<repo>/wiki/<slug>``
+   (no ``.md``, no nested path in the URL) so clicks stay in the Wiki UI.
+4. Writes ``_Footer.md`` and commits/pushes when needed.
 
-- ``GITHUB_REPOSITORY`` — ``owner/repo`` (set automatically in GitHub Actions).
-- ``WIKI_SYNC_TOKEN`` — token with push access to the wiki remote (use  ``secrets.GITHUB_TOKEN`` in Actions for the same repository).
+Configuration (CI):
 
-Optional flags for local debugging:
+- ``GITHUB_REPOSITORY`` — ``owner/repo``
+- ``WIKI_SYNC_TOKEN`` — token with push access to the wiki remote
 
-- ``--dry-run`` — do not clone or push; write the transformed tree to ``--output``.
-- ``--source DIR`` — default: ``<repo-root>/wiki``.
+Local: ``--dry-run`` / ``--output`` (output directory must be new or empty).
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
@@ -64,6 +67,25 @@ _ASSET_EXT = frozenset(
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def source_rel_to_slug(rel_posix: str) -> str:
+    """Map ``wiki/`` relative path to GitHub Wiki page slug (filename stem)."""
+    if rel_posix == "Home.md":
+        return "Home"
+    if rel_posix == "_Sidebar.md":
+        return "_Sidebar"
+    if not rel_posix.endswith(".md"):
+        sys.exit(f"wiki publish: expected .md file, got {rel_posix!r}")
+    stem = rel_posix[: -len(".md")]
+    return stem.replace("/", "-")
+
+
+def page_path_to_slug(page_path: str) -> str:
+    """Map resolved page path (no .md, posix slashes) to the same slug rule."""
+    if not page_path or page_path == "Home":
+        return "Home"
+    return page_path.replace("/", "-")
 
 
 def should_rewrite_target(href: str) -> bool:
@@ -100,6 +122,9 @@ def resolve_wiki_page_path(current_md_relative: str, href: str) -> tuple[str, st
     if not path_part:
         return "", anchor_suffix
 
+    if path_part.endswith("/"):
+        path_part = path_part.rstrip("/") + "/index.md"
+
     cur_dir = os.path.dirname(current_md_relative)
     if cur_dir == "":
         cur_dir = "."
@@ -116,9 +141,9 @@ def resolve_wiki_page_path(current_md_relative: str, href: str) -> tuple[str, st
 
 def wiki_page_url(owner: str, repo: str, page_path: str, anchor: str) -> str:
     base = f"https://github.com/{owner}/{repo}/wiki"
-    if not page_path or page_path == "Home":
-        return f"{base}/Home{anchor}"
-    return f"{base}/{page_path}{anchor}"
+    slug = page_path_to_slug(page_path)
+    safe = quote(slug, safe="-")
+    return f"{base}/{safe}{anchor}"
 
 
 def rewrite_markdown_links(content: str, current_md_relative: str, owner: str, repo: str) -> str:
@@ -150,36 +175,15 @@ on branch `main`. This GitHub Wiki is **generated** from that tree on each
 eligible push; edit there (pull requests) instead of the Wiki web editor, or
 changes may be overwritten on the next sync.
 
-Internal links use GitHub Wiki URLs so the sidebar and in-page navigation work
-in the Wiki UI.
+Pages here use **one flat wiki page per source file**, with a unique name derived
+from the path (slashes become hyphens) so GitHub Wiki does not merge conflicting
+``index.md`` files. Links use ``/wiki/<slug>`` URLs so navigation stays in the
+rendered wiki view.
 """
 
 
-def transform_tree(dest: Path, owner: str, repo: str) -> None:
-    md_files = sorted(dest.rglob("*.md"))
-    for path in md_files:
-        rel = path.relative_to(dest).as_posix()
-        text = path.read_text(encoding="utf-8")
-        out = rewrite_markdown_links(text, rel, owner, repo)
-        path.write_text(out, encoding="utf-8", newline="\n")
-    (dest / "_Footer.md").write_text(render_footer(owner, repo), encoding="utf-8", newline="\n")
-
-
-def _copy_wiki_entries(source: Path, dest: Path) -> None:
-    for entry in source.iterdir():
-        if entry.name.startswith("."):
-            continue
-        target = dest / entry.name
-        if entry.is_dir():
-            shutil.copytree(entry, target)
-        else:
-            shutil.copy2(entry, target)
-
-
-def copy_source_tree(source: Path, dest: Path, *, destructive: bool) -> None:
-    if not source.is_dir():
-        sys.exit(f"wiki source missing: {source}")
-    if destructive:
+def _prepare_dest(dest: Path, *, clean_dest: bool) -> None:
+    if clean_dest:
         for child in dest.iterdir():
             if child.name == ".git":
                 continue
@@ -191,7 +195,34 @@ def copy_source_tree(source: Path, dest: Path, *, destructive: bool) -> None:
         if dest.exists() and any(dest.iterdir()):
             sys.exit(f"refusing dry-run: destination {dest} is not empty (pick a new path or remove files)")
         dest.mkdir(parents=True, exist_ok=True)
-    _copy_wiki_entries(source, dest)
+
+
+def flatten_publish(source: Path, dest: Path, owner: str, repo: str, *, clean_dest: bool) -> None:
+    if not source.is_dir():
+        sys.exit(f"wiki source missing: {source}")
+
+    md_sources = sorted(source.rglob("*.md"))
+    slug_to_rel: dict[str, str] = {}
+    for path in md_sources:
+        rel = path.relative_to(source).as_posix()
+        slug = source_rel_to_slug(rel)
+        if slug in slug_to_rel:
+            sys.exit(
+                "wiki publish: slug collision for "
+                f"{slug!r}: {slug_to_rel[slug]} and {rel}"
+            )
+        slug_to_rel[slug] = rel
+
+    _prepare_dest(dest, clean_dest=clean_dest)
+
+    for path in md_sources:
+        rel = path.relative_to(source).as_posix()
+        slug = source_rel_to_slug(rel)
+        text = path.read_text(encoding="utf-8")
+        out = rewrite_markdown_links(text, rel, owner, repo)
+        (dest / f"{slug}.md").write_text(out, encoding="utf-8", newline="\n")
+
+    (dest / "_Footer.md").write_text(render_footer(owner, repo), encoding="utf-8", newline="\n")
 
 
 def _git(token: str, args: list[str], *, cwd: Path | None = None) -> None:
@@ -258,8 +289,7 @@ def main() -> None:
         out = args.output
         if out is None:
             out = Path(tempfile.mkdtemp(prefix="wiki-publish-"))
-        copy_source_tree(source, out, destructive=False)
-        transform_tree(out, owner, repo)
+        flatten_publish(source, out, owner, repo, clean_dest=False)
         print(f"dry-run: transformed wiki written to {out}")
         return
 
@@ -271,8 +301,7 @@ def main() -> None:
         clone = Path(tmp) / "wiki.git"
         plain_url = f"https://github.com/{full}.wiki.git"
         _git(token, ["clone", plain_url, str(clone)])
-        copy_source_tree(source, clone, destructive=True)
-        transform_tree(clone, owner, repo)
+        flatten_publish(source, clone, owner, repo, clean_dest=True)
         git_commit_push(clone, token, full)
 
 
