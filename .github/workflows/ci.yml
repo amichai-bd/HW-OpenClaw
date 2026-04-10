@@ -28,7 +28,7 @@ jobs:
 
       - name: run fifo gate
         run: |
-          ./build -ip fifo -validate -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"
+          ./build -ip fifo -qa -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"
 
       - name: upload fifo artifacts
         if: always()
@@ -40,7 +40,7 @@ jobs:
 
       - name: run counter gate
         run: |
-          ./build -ip counter -validate -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_counter"
+          ./build -ip counter -qa -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_counter"
 
       - name: upload counter artifacts
         if: always()

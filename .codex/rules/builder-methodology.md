@@ -43,7 +43,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `. cfg/env.sh` is the shell entrypoint
 - `./setup` is the required repository bootstrap entrypoint for fresh clones and CI provisioning
 - `./build` is the required user-facing repository entrypoint
-- `./build -validate` is the standard repository structure-and-style validation flow for one IP
+- `./build -qa` is the standard repository QA flow for one IP
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
 - CI should invoke the same setup and builder entrypoints used locally
 

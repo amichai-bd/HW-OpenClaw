@@ -125,11 +125,11 @@ For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint 
 Repository structure can be validated explicitly per IP:
 
 ```sh
-./build -ip fifo -validate
-./build -ip counter -validate -lint -fv -synth -regress level_2
+./build -ip fifo -qa
+./build -ip counter -qa -lint -fv -synth -regress level_2
 ```
 
-The validation flow checks that the IP structure, config references, source filelists, mirrored wiki pages, and a deterministic subset of the repository style rules match the repository contract before deeper discipline flows run. Each validation run emits a `workdir/<tag>/<ip>/validate/validate_report.txt` artifact listing the checked handwritten sources and any violations.
+The QA flow checks that the IP structure, config references, source filelists, mirrored wiki pages, and a deterministic subset of the repository style rules match the repository contract before deeper discipline flows run. Each QA run emits a `workdir/<tag>/<ip>/qa/qa_report.txt` artifact listing the checked handwritten sources and any violations.
 
 ## CI
 
@@ -153,7 +153,7 @@ The validation flow checks that the IP structure, config references, source file
 - Targets declare root steps, tool requirements, optional selectors, and target-local context overlays.
 - Steps declare `depends_on`, commands or actions, display names, and review artifacts.
 - The Python builder resolves the selected targets, computes the dependency graph from `depends_on`, and runs independent disciplines in parallel when they do not depend on one another.
-- The builder also provides a structure-validation target so repository contracts can be checked explicitly before larger flows run.
+- The builder also provides a QA target so repository contracts can be checked explicitly before larger flows run.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current formal flow is selected through `cfg/fv.yaml`.

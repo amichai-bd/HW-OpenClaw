@@ -84,7 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run project build steps")
     parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
-    parser.add_argument("-validate", action="store_true", help="validate repository structure for one IP")
+    parser.add_argument("-qa", action="store_true", help="run repository QA checks for one IP")
     parser.add_argument("-lint", action="store_true", help="run lint step")
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
@@ -103,7 +103,7 @@ def parse_args() -> argparse.Namespace:
             1 if args.test else 0,
             1 if args.regress else 0,
             1 if args.debug else 0,
-            1 if args.validate else 0,
+            1 if args.qa else 0,
         ]
     )
     if args.debug and requested_modes != 1:
@@ -149,8 +149,8 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_dv_filelist",
             "generated_all_filelist",
             "generated_fv_filelist",
-            "validate_out_dir",
-            "validate_report",
+            "qa_out_dir",
+            "qa_report",
             "lint_out_dir",
             "lint_log",
             "fv_out_dir",
@@ -411,8 +411,8 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["generated_fv_filelist"] = resolve_path(
         apply_template(layout["generated_fv_filelist"], ip_data)
     )
-    ip_data["validate_out_dir"] = resolve_path(apply_template(layout["validate_out_dir"], ip_data))
-    ip_data["validate_report"] = resolve_path(apply_template(layout["validate_report"], ip_data))
+    ip_data["qa_out_dir"] = resolve_path(apply_template(layout["qa_out_dir"], ip_data))
+    ip_data["qa_report"] = resolve_path(apply_template(layout["qa_report"], ip_data))
     ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
     ip_data["fv_out_dir"] = resolve_path(apply_template(layout["fv_out_dir"], ip_data))
     ip_data["fv_run_dir"] = resolve_path(apply_template(layout["fv_run_dir"], ip_data))
@@ -500,7 +500,7 @@ def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
 
 def prompt_for_modes() -> list[str] | None:
     mode_items = [
-        ("validate", "-validate"),
+        ("qa", "-qa"),
         ("lint", "-lint"),
         ("fv", "-fv"),
         ("synth", "-synth"),
@@ -541,7 +541,7 @@ def prompt_for_modes() -> list[str] | None:
 
 
 def apply_selected_modes(args: argparse.Namespace, selected_modes: list[str]) -> None:
-    args.validate = "validate" in selected_modes
+    args.qa = "qa" in selected_modes
     args.lint = "lint" in selected_modes
     args.fv = "fv" in selected_modes
     args.synth = "synth" in selected_modes
@@ -567,8 +567,8 @@ def build_resolved_command(args: argparse.Namespace) -> str:
         parts.extend(["-ip", args.ip])
     if args.tag:
         parts.extend(["-tag", args.tag])
-    if args.validate:
-        parts.append("-validate")
+    if args.qa:
+        parts.append("-qa")
     if args.lint:
         parts.append("-lint")
     if args.fv:
@@ -655,8 +655,8 @@ def resolve_requested_targets(args: argparse.Namespace) -> list[str]:
     targets: list[str] = []
     if args.debug:
         return ["debug"]
-    if args.validate:
-        targets.append("validate")
+    if args.qa:
+        targets.append("qa")
     if args.lint:
         targets.append("lint")
     if args.fv:
@@ -1210,8 +1210,8 @@ def resolve_fv_solver(context: dict) -> tuple[str, str]:
 
 
 def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
-    if isinstance(command, dict) and command.get("action") == "validate_structure":
-        validate_structure(context)
+    if isinstance(command, dict) and command.get("action") == "run_qa":
+        run_qa_checks(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         prepare_filelists(context)
@@ -1386,7 +1386,7 @@ def collect_validation_style_files(context: dict) -> list[Path]:
 
 
 def write_validation_report(context: dict, checked_files: list[Path], violations: list[str]) -> None:
-    report_path = (REPO_ROOT / context["validate_report"]).resolve()
+    report_path = (REPO_ROOT / context["qa_report"]).resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
     lines = [
@@ -1406,7 +1406,7 @@ def write_validation_report(context: dict, checked_files: list[Path], violations
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def validate_structure(context: dict) -> None:
+def run_qa_checks(context: dict) -> None:
     require_keys(
         context,
         [
@@ -1426,7 +1426,7 @@ def validate_structure(context: dict) -> None:
             "fv_top",
             "fv_filelist",
             "synth_profile",
-            "validate_report",
+            "qa_report",
         ],
         f"ip.{context['ip']}",
     )
@@ -1484,7 +1484,7 @@ def validate_structure(context: dict) -> None:
 
     write_validation_report(context, checked_files, violations)
     if violations:
-        raise BuildError(f"style validation failed with {len(violations)} violation(s)")
+        raise BuildError(f"qa failed with {len(violations)} violation(s)")
 
 
 def run_step(

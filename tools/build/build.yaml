@@ -71,14 +71,14 @@ targets:
     review_files:
       - "{ip_root}"
 
-  validate:
+  qa:
     root_steps:
-      - validate_structure
+      - qa
     context:
-      run_dir: "{validate_out_dir}"
-      log_file: "{validate_report}"
+      run_dir: "{qa_out_dir}"
+      log_file: "{qa_report}"
     review_files:
-      - "{validate_report}"
+      - "{qa_report}"
       - "{rtl_filelist}"
       - "{dv_filelist}"
 
@@ -168,12 +168,12 @@ steps:
     commands:
       - action: run_regression
 
-  validate_structure:
-    display_name: "validate {ip}"
+  qa:
+    display_name: "qa {ip}"
     depends_on: []
     review_files:
-      - "{validate_report}"
+      - "{qa_report}"
       - "{rtl_filelist}"
       - "{dv_filelist}"
     commands:
-      - action: validate_structure
+      - action: run_qa

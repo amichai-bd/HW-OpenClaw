@@ -36,7 +36,7 @@ The builder should prefer:
 
 The repository should be able to validate its own structural contract.
 
-- `./build -ip <ip> -validate` is the standard structure-validation flow
-- validation should check config references, filelists, mirrored wiki pages, discipline layout, and a deterministic subset of the repository style contract
+- `./build -ip <ip> -qa` is the standard repository QA flow
+- QA should check config references, filelists, mirrored wiki pages, discipline layout, and a deterministic subset of the repository style contract
 - the enforced style subset should stay deterministic and low-ambiguity, for example plain `always`, inline `logic` initialization, and handwritten non-blocking assignments
 - larger IPs should enter the repository only after passing the same structural contract
