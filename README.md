@@ -2,6 +2,14 @@
 
 HW-OpenClaw is a hardware-design repository driven through short task cycles, with SystemVerilog RTL, a pure-SystemVerilog DV environment, and a YAML-driven builder flow around Verilator.
 
+## Status
+
+Main branch ([`ci`](.github/workflows/ci.yml) workflow on `main`):
+
+[![ci on main](https://github.com/amichai-bd/HW-OpenClaw/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amichai-bd/HW-OpenClaw/actions/workflows/ci.yml?query=branch%3Amain)
+
+The badge reflects the latest completed GitHub Actions run for `main`, not the state of open pull requests.
+
 ## Repository structure
 
 ```text
