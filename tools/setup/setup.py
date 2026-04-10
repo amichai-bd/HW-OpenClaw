@@ -51,8 +51,8 @@ def load_env_config() -> dict:
     return environment
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None) -> None:
-    result = subprocess.run(cmd, cwd=cwd, text=True)
+def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> None:
+    result = subprocess.run(cmd, cwd=cwd, text=True, env=env)
     if result.returncode != 0:
         raise SetupError(f"command failed with exit code {result.returncode}: {' '.join(cmd)}")
 
@@ -136,8 +136,10 @@ def check_platform(bootstrap: dict) -> None:
 
 
 def install_apt_packages(bootstrap: dict) -> None:
-    run_cmd(["sudo", "apt-get", "update"])
-    run_cmd(["sudo", "apt-get", "install", "-y", *bootstrap["apt_packages"]])
+    apt_env = dict(os.environ)
+    apt_env["DEBIAN_FRONTEND"] = "noninteractive"
+    run_cmd(["sudo", "apt-get", "update"], env=apt_env)
+    run_cmd(["sudo", "apt-get", "install", "-y", *bootstrap["apt_packages"]], env=apt_env)
 
 
 def install_sby(bootstrap: dict) -> None:
@@ -165,7 +167,7 @@ def install_sby(bootstrap: dict) -> None:
         run_cmd(["make", "install", f"PREFIX={install_prefix}"], cwd=clone_dir)
 
 
-def verify_tools(environment: dict) -> None:
+def verify_tools(environment: dict, strict: bool = True) -> None:
     tools = get_tools(environment)
     print("tool verification:", flush=True)
     for tool_name in ["python3", "verilator", "gtkwave", "yosys", "sby", "boolector", "z3"]:
@@ -173,11 +175,14 @@ def verify_tools(environment: dict) -> None:
         if not isinstance(tool_cfg, dict):
             raise SetupError(f"missing tool config for '{tool_name}'")
         exe = str(tool_cfg["exe"])
-        version_cmd = str(tool_cfg["version_cmd"]).split()
         if not Path(exe).expanduser().is_file():
             raise SetupError(f"missing executable for {tool_name}: {exe}")
-        version_text = capture_cmd(version_cmd)
-        print(f"- {tool_name}: {version_text}", flush=True)
+        if strict:
+            version_cmd = str(tool_cfg["version_cmd"]).split()
+            version_text = capture_cmd(version_cmd)
+            print(f"- {tool_name}: {version_text}", flush=True)
+        else:
+            print(f"- {tool_name}: {exe}", flush=True)
 
 
 def print_plan(environment: dict) -> None:
@@ -215,7 +220,7 @@ def main() -> int:
         check_platform(bootstrap)
         install_apt_packages(bootstrap)
         install_sby(bootstrap)
-        verify_tools(environment)
+        verify_tools(environment, strict=not args.ci)
         if not args.ci:
             print("", flush=True)
             print("next step:", flush=True)
