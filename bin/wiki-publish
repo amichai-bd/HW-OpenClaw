@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Publish wiki/ to GitHub Wiki (requires GITHUB_REPOSITORY and WIKI_SYNC_TOKEN unless --dry-run).
+# Publish wiki/ to GitHub Wiki through the on-demand update-wiki skill.
 if [ -z "${MODEL_ROOT:-}" ]; then
   _here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
   MODEL_ROOT=$(CDPATH= cd -- "$_here/.." && pwd)
   export MODEL_ROOT
 fi
-exec python3 "$MODEL_ROOT/tools/wiki/publish_github_wiki.py" "$@"
+exec python3 "$MODEL_ROOT/.codex/skills/update-wiki/scripts/update-wiki.py" "$@"

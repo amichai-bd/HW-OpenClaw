@@ -19,7 +19,7 @@ body:
       label: wiki reference
       description: Reference the relevant wiki page or mirrored wiki path and begin from the specification.
       placeholder: |
-        according to wiki wiki/rtl/fifo/code/index.md
+        according to wiki wiki/rtl/fifo/rtl-fifo.md
         according to wiki wiki/flows-methods-phylosophy/rtl-coding-style.md
     validations:
       required: true

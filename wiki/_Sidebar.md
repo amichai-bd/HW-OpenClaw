@@ -3,7 +3,7 @@
 - [Home](Home.md)
 
 - repository methods
-  - [flows methods phylosophy](flows-methods-phylosophy/index.md)
+  - [flows methods phylosophy](flows-methods-phylosophy/flows-methods-phylosophy.md)
   - [spec driven development](flows-methods-phylosophy/spec-driven-development.md)
   - [github flow](flows-methods-phylosophy/github-flow.md)
   - [repo structure](flows-methods-phylosophy/repo-structure.md)
@@ -16,22 +16,22 @@
   - [synthesis methodology](flows-methods-phylosophy/synthesis-methodology.md)
 
 - rtl
-  - [rtl overview](rtl/index.md)
-  - [rtl common](rtl/common/index.md)
-  - [rtl fifo](rtl/fifo/index.md)
-  - [rtl counter](rtl/counter/index.md)
+  - [rtl overview](rtl/rtl.md)
+  - [rtl common](rtl/common/rtl-common.md)
+  - [rtl fifo](rtl/fifo/rtl-fifo.md)
+  - [rtl counter](rtl/counter/rtl-counter.md)
 
 - dv
-  - [dv overview](dv/index.md)
-  - [dv fifo](dv/fifo/index.md)
-  - [dv counter](dv/counter/index.md)
+  - [dv overview](dv/dv.md)
+  - [dv fifo](dv/fifo/dv-fifo.md)
+  - [dv counter](dv/counter/dv-counter.md)
 
 - fv
-  - [fv overview](fv/index.md)
-  - [fv common](fv/common/index.md)
-  - [fv fifo](fv/fifo/index.md)
-  - [fv counter](fv/counter/index.md)
+  - [fv overview](fv/fv.md)
+  - [fv common](fv/common/fv-common.md)
+  - [fv fifo](fv/fifo/fv-fifo.md)
+  - [fv counter](fv/counter/fv-counter.md)
 
 - syn
-  - [syn overview](syn/index.md)
-  - [syn common](syn/common/index.md)
+  - [syn overview](syn/syn.md)
+  - [syn common](syn/common/syn-common.md)
