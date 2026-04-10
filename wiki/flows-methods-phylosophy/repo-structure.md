@@ -79,4 +79,4 @@ The structure should help answer these questions quickly:
 
 If a new directory or tool makes those answers less obvious, the structure should be reconsidered.
 
-The repository should also validate these answers automatically through the standard structure-validation flow rather than depending only on review memory.
+The repository should also validate these answers automatically through the standard QA flow rather than depending only on review memory.

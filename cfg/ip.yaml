@@ -8,8 +8,8 @@ output_layout:
   generated_dv_filelist: workdir/{tag}/{ip}/filelist/filelist_dv_{ip}.f
   generated_all_filelist: workdir/{tag}/{ip}/filelist/filelist_all_{ip}.f
   generated_fv_filelist: workdir/{tag}/{ip}/filelist/filelist_fv_{ip}.f
-  validate_out_dir: workdir/{tag}/{ip}/validate/
-  validate_report: workdir/{tag}/{ip}/validate/validate_report.txt
+  qa_out_dir: workdir/{tag}/{ip}/qa/
+  qa_report: workdir/{tag}/{ip}/qa/qa_report.txt
   lint_out_dir: workdir/{tag}/{ip}/lint/
   lint_log: workdir/{tag}/{ip}/lint/lint.log
   fv_out_dir: workdir/{tag}/{ip}/fv/
