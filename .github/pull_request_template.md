@@ -6,6 +6,7 @@ according to wiki wiki/
 
 - 
 - mention whether PR-Agent findings were handled or why none were raised
+- mention whether CodeRabbit findings / threads were handled or why none were raised
 
 ## Wiki Impact
 
@@ -22,4 +23,5 @@ according to wiki wiki/
 - [ ] related issue is linked and uses the correct labels
 - [ ] this pull request is expected to stay owned until checks are green and merge completes
 - [ ] PR-Agent findings were handled before merge
+- [ ] CodeRabbit findings and review threads were handled before merge
 - [ ] native auto-merge should be enabled when this pull request is ready
