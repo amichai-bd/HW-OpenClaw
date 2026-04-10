@@ -21,5 +21,6 @@ The repository intentionally uses two different review mechanisms:
 
 - PR-Agent is the repository-managed GitHub Actions review gate. It is configured in `.pr_agent.toml`, appears as a required PR check, and should present findings in a structured format.
 - CodeRabbit is the GitHub App review gate. It is configured in `.coderabbit.yaml`, appears as the required `CodeRabbit` check, and can also block merge through unresolved review conversations.
+- On this repository, GitHub publishes the CodeRabbit gate as the `CodeRabbit` commit status context; that is the string branch protection should require among required status checks.
 
 Agents should not treat either review system as optional. Both must be watched and handled until the pull request is clean enough to auto-merge.
