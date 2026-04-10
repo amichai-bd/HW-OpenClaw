@@ -18,6 +18,11 @@ The specification is the version-controlled `wiki/` tree.
 - once the issue becomes a pull request, the agent should keep ownership of it until CI is green, review feedback is resolved, PR-Agent findings are handled, CodeRabbit findings are handled, and the pull request merges
 - repository bootstrap and structural validation should be part of the normal spec contract, not ad hoc local knowledge
 
+PR-Agent and CodeRabbit serve different roles in that review path:
+
+- PR-Agent is a repository-managed review check. It should give structured findings that are easy to classify as blocking or informational.
+- CodeRabbit is a GitHub App review system. It provides a required check and can also leave review conversations that must be resolved before merge.
+
 ## Change categories
 
 ### implementation bug under correct spec
@@ -88,6 +93,6 @@ A spec-driven change is only complete when all of the following are true:
 - the issue references the relevant wiki path
 - the issue is labeled correctly
 - the pull request references the relevant wiki path
-- required PR/build checks are green and PR-Agent and CodeRabbit have completed successfully
+- required PR/build checks are green, PR-Agent and CodeRabbit have completed successfully, and any merge-blocking review conversations are resolved
 - the pull request is merged through the normal gated GitHub flow, preferably with native auto-merge enabled
 - the local workspace is synced back to `main`

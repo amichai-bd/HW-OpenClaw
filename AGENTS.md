@@ -33,12 +33,13 @@ workdir/ generated run outputs
 - Each pull request must reference the relevant wiki path.
 - Pull requests are expected to satisfy the repository gate checks before merge.
 - Pull requests are also expected to satisfy the PR-Agent review gate before merge.
-- Pull requests are also expected to satisfy the CodeRabbit review gate before merge once the CodeRabbit GitHub App is installed on the public repository.
+- Pull requests are also expected to satisfy the CodeRabbit review gate before merge.
 - Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
 - Agents are expected to poll their open pull requests, watch CI, PR-Agent, CodeRabbit, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
 - If PR-Agent raises findings or comments, address them before merge. Do not leave PR-Agent findings unresolved and assume the pull request is ready anyway.
 - If CodeRabbit raises findings or review threads, address them before merge. Do not leave CodeRabbit findings unresolved and assume the pull request is ready anyway.
 - PR-Agent should answer in the repository-defined structured format from `.pr_agent.toml`. Agents should use that structure to decide what is blocking, what is informational, and what needs a code or doc fix.
+- PR-Agent and CodeRabbit have different gate surfaces. PR-Agent is the repository-managed GitHub Actions review gate configured by `.pr_agent.toml`. CodeRabbit is the GitHub App review gate configured by `.coderabbit.yaml` and can also block merge through unresolved review conversations.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
 - After merge, delete the branch locally and on origin.
 - If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.

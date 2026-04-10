@@ -20,6 +20,9 @@ Use this repository through issue-driven GitHub flow.
 - if a check fails, fix the branch and push again
 - if PR-Agent raises findings, address them on the same branch before merge
 - if CodeRabbit raises findings or review threads, address them on the same branch before merge
+- remember the review systems behave differently:
+  - PR-Agent is the repository-managed GitHub Actions review check configured by `.pr_agent.toml`
+  - CodeRabbit is the GitHub App review/check configured by `.coderabbit.yaml` and may also block merge through unresolved review threads
 - if the PR body or issue framing is wrong, fix it on the live PR/issue instead of leaving drift behind
 - stay on the same branch unless there is a strong reason to restart the change
 
@@ -28,7 +31,7 @@ Use this repository through issue-driven GitHub flow.
 - the normal finish path is native GitHub auto-merge
 - required checks must be green before merge
 - required PR-Agent review findings should be handled before merge
-- CodeRabbit review threads should be treated as merge-blocking review state once the GitHub App is installed on the public repo
+- CodeRabbit review threads should be treated as merge-blocking review state
 - after merge, sync local `main`
 - after merge, delete the branch locally and on origin
 
