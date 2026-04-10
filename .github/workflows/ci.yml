@@ -36,7 +36,7 @@ jobs:
         with:
           name: workdir-fifo
           path: workdir/gh_${{ github.run_id }}_fifo/
-          if-no-files-found: error
+          if-no-files-found: ignore
 
       - name: run counter gate
         run: |
@@ -48,4 +48,4 @@ jobs:
         with:
           name: workdir-counter
           path: workdir/gh_${{ github.run_id }}_counter/
-          if-no-files-found: error
+          if-no-files-found: ignore
