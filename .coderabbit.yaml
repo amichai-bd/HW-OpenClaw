@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!workdir/**"
+    - "!**/*.vcd"
+    - "!**/*.json"
+  path_instructions:
+    - path: "src/rtl/**"
+      instructions: |
+        Review RTL changes against the repository RTL coding rules and spec-driven structure.
+        Check lowercase module and file naming, uppercase parameters, separation of combinational and sequential intent, absence of plain `always`, absence of handwritten non-blocking assignments outside approved macros, and alignment with `wiki/flows-methods-phylosophy/rtl-coding-style.md`.
+        Check that shared reusable collateral belongs under `src/rtl/common/` rather than being buried under a single IP unless cross-IP composition is intentional architecture.
+    - path: "src/dv/**"
+      instructions: |
+        Review DV changes against the repository DV methodology.
+        Check that the environment remains UVM-shaped without importing UVM, that TB tops stay thin, that interfaces/packages/env/tb/tests/regressions keep their intended roles, and that test output paths remain structured and builder-driven.
+        Check alignment with `wiki/flows-methods-phylosophy/dv-methodology.md`.
+    - path: "src/fv/**"
+      instructions: |
+        Review FV changes against the repository formal methodology.
+        Check that assumptions, environment code, properties, and proof wrappers remain predictably split, and that proof intent remains explicit and consistent with config and builder flow.
+        Check that handwritten code follows the same no-plain-`always`, no-inline-logic-init, and no-handwritten-nonblocking-assignment rules where applicable.
+    - path: "src/syn/**"
+      instructions: |
+        Review synthesis collateral against the repository synthesis methodology.
+        Check that shared collateral stays under `src/syn/common/`, that per-IP synthesis content stays consistent with selected synth profiles, and that flow intent remains YAML-driven rather than ad hoc.
+    - path: "cfg/**"
+      instructions: |
+        Review config changes for YAML source-of-truth discipline.
+        Check that environment, IP metadata, formal profiles, synthesis profiles, and structured output layout remain consistent with the builder and the wiki.
+        Flag config drift between `cfg/*.yaml`, `tools/build/build.yaml`, and the documented repository flow.
+    - path: "tools/build/**"
+      instructions: |
+        Review builder changes against the repository builder methodology.
+        Check that the builder remains a declarative executor of YAML-defined targets and steps, with dependencies expressed through `depends_on`, and that new logic does not reintroduce ad hoc repository discovery or hidden defaults.
+        Check that build UX remains clear and that QA/gate behavior stays aligned with CI.
+    - path: "wiki/**"
+      instructions: |
+        Review wiki changes as specification changes.
+        Check that spec updates stay aligned with the mirrored `src/` structure and the repository methodology, and flag cases where code/config likely need corresponding updates.
+    - path: ".github/**"
+      instructions: |
+        Review GitHub workflow and template changes against the repository GitHub-flow contract.
+        Check that PR gates remain spec-driven and issue-driven, that required checks stay coherent, and that workflow logic continues to use the standard repo entrypoints rather than re-encoding tool behavior.
+    - path: "AGENTS.md"
+      instructions: |
+        Review AGENTS.md as the concise agent operating contract only.
+        Flag duplication that belongs in the wiki or `.codex/rules/`, and check that workflow ownership, spec-driven behavior, and gate expectations remain accurate.
+    - path: ".codex/rules/**"
+      instructions: |
+        Review `.codex/rules/` as the condensed execution-facing rule layer derived from the wiki.
+        Check that it stays aligned with the wiki and does not drift into conflicting or redundant policy.
+
+chat:
+  auto_reply: true

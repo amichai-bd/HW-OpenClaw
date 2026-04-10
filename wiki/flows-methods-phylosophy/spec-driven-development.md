@@ -12,9 +12,10 @@ The specification is the version-controlled `wiki/` tree.
 - every issue should carry the correct labels for the change type
 - implementation should follow the spec instead of inventing behavior ad hoc in code
 - pull requests should also be reviewed for spec alignment by PR-Agent, using repository-specific guidance from `.pr_agent.toml`
+- pull requests on the public repository should also be reviewed for spec and flow alignment by CodeRabbit, using repository-specific guidance from `.coderabbit.yaml`
 - if code reveals ambiguity, missing detail, or a wrong assumption in the wiki, the wiki should be clarified as part of the change
 - if the issue is only an implementation bug under an already-correct spec, `src/` may change without a wiki edit, but the issue must still reference the wiki
-- once the issue becomes a pull request, the agent should keep ownership of it until CI is green, review feedback is resolved, PR-Agent findings are handled, and the pull request merges
+- once the issue becomes a pull request, the agent should keep ownership of it until CI is green, review feedback is resolved, PR-Agent findings are handled, CodeRabbit findings are handled, and the pull request merges
 - repository bootstrap and structural validation should be part of the normal spec contract, not ad hoc local knowledge
 
 ## Change categories
@@ -87,6 +88,6 @@ A spec-driven change is only complete when all of the following are true:
 - the issue references the relevant wiki path
 - the issue is labeled correctly
 - the pull request references the relevant wiki path
-- required PR/build checks are green and PR-Agent has completed successfully
+- required PR/build checks are green and PR-Agent and CodeRabbit have completed successfully
 - the pull request is merged through the normal gated GitHub flow, preferably with native auto-merge enabled
 - the local workspace is synced back to `main`

@@ -8,10 +8,11 @@ The repository follows GitHub flow.
 - branch names should start with the issue number
 - each change should go through a pull request before merge to `main`
 - the agent that opens the pull request keeps ownership of it until merge
-- agents should poll pull requests for CI, PR-Agent, and review state, fix problems, and keep pushing to the same branch until the pull request merges
-- CI gates `main`, and issue / pull-request reference checks plus PR-Agent review are part of the normal path
+- agents should poll pull requests for CI, PR-Agent, CodeRabbit, and review state, fix problems, and keep pushing to the same branch until the pull request merges
+- CI gates `main`, and issue / pull-request reference checks plus PR-Agent review and CodeRabbit review are part of the intended normal path
 - native GitHub auto-merge is the expected merge path once the required PR/build checks and conversation-resolution requirements are clean
 - after merge, local workspaces should sync back to `main`
 - short-lived branches should be deleted both locally and on origin
 
 PR-Agent findings are part of the normal PR ownership model and should be handled before merge.
+CodeRabbit findings and unresolved review threads are also part of the normal PR ownership model and should be handled before merge.

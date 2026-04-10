@@ -33,9 +33,11 @@ workdir/ generated run outputs
 - Each pull request must reference the relevant wiki path.
 - Pull requests are expected to satisfy the repository gate checks before merge.
 - Pull requests are also expected to satisfy the PR-Agent review gate before merge.
+- Pull requests are also expected to satisfy the CodeRabbit review gate before merge once the CodeRabbit GitHub App is installed on the public repository.
 - Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
-- Agents are expected to poll their open pull requests, watch CI, PR-Agent, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
+- Agents are expected to poll their open pull requests, watch CI, PR-Agent, CodeRabbit, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
 - If PR-Agent raises findings or comments, address them before merge. Do not leave PR-Agent findings unresolved and assume the pull request is ready anyway.
+- If CodeRabbit raises findings or review threads, address them before merge. Do not leave CodeRabbit findings unresolved and assume the pull request is ready anyway.
 - PR-Agent should answer in the repository-defined structured format from `.pr_agent.toml`. Agents should use that structure to decide what is blocking, what is informational, and what needs a code or doc fix.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
 - After merge, delete the branch locally and on origin.
@@ -125,3 +127,4 @@ Useful `.codex/rules/` files by topic:
 - `-test` and `-regress` remain mutually exclusive in a single invocation.
 - GitHub Actions gates should invoke the same repository setup and builder entrypoints used locally rather than re-encoding tool logic in workflow YAML.
 - GitHub Actions PR gates should include the PR-Agent review action with repository-specific instructions from the repo-root `.pr_agent.toml`.
+- CodeRabbit should be configured from the repo-root `.coderabbit.yaml` and used as an additional PR review gate on the public repository.
