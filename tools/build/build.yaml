@@ -74,10 +74,13 @@ targets:
   validate:
     root_steps:
       - validate_structure
+    context:
+      run_dir: "{validate_out_dir}"
+      log_file: "{validate_report}"
     review_files:
+      - "{validate_report}"
       - "{rtl_filelist}"
       - "{dv_filelist}"
-      - "{fv_filelist}"
 
 steps:
   prepare:
@@ -169,8 +172,8 @@ steps:
     display_name: "validate {ip}"
     depends_on: []
     review_files:
+      - "{validate_report}"
       - "{rtl_filelist}"
       - "{dv_filelist}"
-      - "{fv_filelist}"
     commands:
       - action: validate_structure

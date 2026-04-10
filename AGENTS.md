@@ -119,7 +119,7 @@ Useful `.codex/rules/` files by topic:
 - `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
 - Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.
-- `-validate` is the standard repository structure check for an IP and should be used before or alongside other discipline flows when structural drift is a concern.
+- `-validate` is the standard repository structure-and-style check for an IP and should be used before or alongside other discipline flows when structural drift is a concern.
 - Shared prerequisites such as generated filelists and compile should run once per invocation when needed.
 - `-debug` remains standalone.
 - `-test` and `-regress` remain mutually exclusive in a single invocation.
