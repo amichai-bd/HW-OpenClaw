@@ -12,7 +12,7 @@ Current areas:
 
 Start here:
 
-- [fv common](common/index.md)
-- [fv fifo](fifo/index.md)
-- [fv counter](counter/index.md)
+- [fv common](common/fv-common.md)
+- [fv fifo](fifo/fv-fifo.md)
+- [fv counter](counter/fv-counter.md)
 - [formal methodology](../flows-methods-phylosophy/formal-methodology.md)

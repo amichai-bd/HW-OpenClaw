@@ -10,9 +10,9 @@ Use this area for:
 
 Start here:
 
-- [rtl common](common/index.md)
-- [rtl fifo](fifo/index.md)
-- [rtl counter](counter/index.md)
+- [rtl common](common/rtl-common.md)
+- [rtl fifo](fifo/rtl-fifo.md)
+- [rtl counter](counter/rtl-counter.md)
 - [rtl coding style](../flows-methods-phylosophy/rtl-coding-style.md)
 
 Repository rule:

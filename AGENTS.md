@@ -16,7 +16,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 ```text
 bin/     thin user-facing entrypoints
 cfg/     yaml source of truth for environment and flows
-.codex/  condensed execution-facing agent rules
+.codex/  agent rules and repo-local skills
 src/     implementation by discipline: rtl, dv, fv, syn
 tools/   tool implementations
 wiki/    version-controlled specification surface
@@ -87,6 +87,7 @@ For detailed style and methodology, consult:
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
+- The GitHub Wiki mirror is updated on demand through the repo-local `.codex/skills/update-wiki/` skill, not through an automatic CI workflow.
 
 ## Repository Shape
 
@@ -131,3 +132,4 @@ Useful `.codex/rules/` files by topic:
 - GitHub Actions gates should invoke the same repository setup and builder entrypoints used locally rather than re-encoding tool logic in workflow YAML.
 - GitHub Actions PR gates should include the PR-Agent review action with repository-specific instructions from the repo-root `.pr_agent.toml`.
 - CodeRabbit should be configured from the repo-root `.coderabbit.yaml` and used as an additional PR review gate on the public repository.
+- Wiki publishing should use `.codex/skills/update-wiki/scripts/update-wiki.py` or the compatibility wrapper `./bin/wiki-publish`.

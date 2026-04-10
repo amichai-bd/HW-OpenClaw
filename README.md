@@ -157,7 +157,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
 - CodeRabbit itself is installed as a GitHub App rather than a repo-authored Actions workflow, while PR-Agent is a repo-authored GitHub Actions workflow. That difference is intentional and is part of the normal gate design.
-- The [wiki-sync](.github/workflows/wiki-sync.yml) workflow publishes the versioned `wiki/` tree to the GitHub Wiki: it clones `*.wiki.git`, **flattens** each markdown file to a unique wiki page (slug = path with `/` → `-`), rewrites links to `/wiki/<slug>` so the Wiki UI renders instead of raw `.md`, then pushes. Entry point: [`bin/wiki-publish`](bin/wiki-publish) (implementation: [tools/wiki/publish_github_wiki.py](tools/wiki/publish_github_wiki.py)). Manual runs: **Actions → wiki-sync → Run workflow**, or locally from repo root: `source ./cfg/env.sh` then `./bin/wiki-publish --dry-run --output /tmp/wiki-out`.
+- The GitHub Wiki mirror is published on demand through the repo-local `.codex/skills/update-wiki/` skill. The script clones `*.wiki.git`, replaces the clone content with the local `wiki/` tree, pushes changed pages, and removes the temporary clone. Entry point: [update-wiki.py](.codex/skills/update-wiki/scripts/update-wiki.py). Compatibility wrapper: [`bin/wiki-publish`](bin/wiki-publish).
 
 ## Current flow
 

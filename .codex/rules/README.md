@@ -6,6 +6,7 @@ It is intentionally separate from the repo-root wiki:
 
 - `wiki/` is the specification source of truth
 - `.codex/rules/` is the condensed implementation-facing guidance derived from that spec
+- `.codex/skills/` contains repo-local agent procedures for explicit operations such as publishing the GitHub Wiki mirror
 - `AGENTS.md` is the concise operating contract that tells agents to use both
 
 ## Intended use
@@ -28,6 +29,8 @@ It is intentionally separate from the repo-root wiki:
 4. when onboarding or hardening repository infrastructure:
    - `builder-methodology.md`
    - the standard repo entrypoints `./setup` and `./build`
+5. when publishing the generated GitHub Wiki mirror:
+   - `.codex/skills/update-wiki/SKILL.md`
 
 ## Rule hierarchy
 

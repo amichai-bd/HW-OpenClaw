@@ -72,7 +72,7 @@ according to wiki wiki/<path>/...
 Good examples:
 
 ```text
-according to wiki wiki/rtl/fifo/code/index.md
+according to wiki wiki/rtl/fifo/rtl-fifo.md
 according to wiki wiki/flows-methods-phylosophy/rtl-coding-style.md
 according to wiki wiki/flows-methods-phylosophy/dv-methodology.md
 ```

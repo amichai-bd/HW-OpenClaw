@@ -29,10 +29,10 @@ For a fresh clone:
 
 If you are changing code in a discipline, jump directly to:
 
-- [rtl overview](rtl/index.md)
-- [dv overview](dv/index.md)
-- [fv overview](fv/index.md)
-- [syn overview](syn/index.md)
+- [rtl overview](rtl/rtl.md)
+- [dv overview](dv/dv.md)
+- [fv overview](fv/fv.md)
+- [syn overview](syn/syn.md)
 
 If you are looking for rules rather than structure, use:
 
@@ -80,11 +80,11 @@ Use the sidebar and the discipline overview pages first.
 
 ### GitHub Wiki tab versus this `wiki/` tree
 
-The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is a generated mirror: CI clones the wiki git repository (`*.wiki.git`), **flattens** each `*.md` file into a **separate wiki page** at the wiki root (unique slug: path with `/` replaced by `-`, e.g. `rtl/index.md` → page `rtl-index`), rewrites links to `https://github.com/<owner>/<repo>/wiki/<slug>` so clicks stay in the **rendered** wiki instead of opening raw markdown, writes `_Footer.md`, commits, and pushes.
+The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is a generated mirror: the on-demand `update-wiki` skill clones the wiki git repository (`*.wiki.git`), replaces its content with the local `wiki/` tree, commits, pushes, and removes the temporary clone.
 
-GitHub Wiki treats page identity mostly by **file basename**, so nested `index.md` files would collide if mirrored literally; the publisher avoids that. Prefer editing markdown here through pull requests; edits made only in the Wiki web editor can be overwritten on the next sync.
+Prefer editing markdown here through pull requests. Edits made only in the Wiki web editor can be overwritten on the next skill-driven publish.
 
-Automation runs through `bin/wiki-publish` (implementation `tools/wiki/publish_github_wiki.py`), invoked from `.github/workflows/wiki-sync.yml`.
+Publishing runs by explicit agent action through `.codex/skills/update-wiki/scripts/update-wiki.py`. The compatibility wrapper `./bin/wiki-publish` delegates to the same skill script.
 
 To **inspect the live published wiki as a git tree** (optional), from the repository root clone the wiki remote into the ignored folder `HW-OpenClaw-wiki` (see root `.gitignore`):
 
@@ -92,12 +92,12 @@ To **inspect the live published wiki as a git tree** (optional), from the reposi
 git clone https://github.com/amichai-bd/HW-OpenClaw.wiki.git HW-OpenClaw-wiki
 ```
 
-To compare with what CI would publish from this `wiki/` tree, run `./bin/wiki-publish --dry-run --output /tmp/hw-wiki-publish-preview` and diff against `HW-OpenClaw-wiki`.
+To compare with what the skill would publish from this `wiki/` tree, run `./bin/wiki-publish --dry-run --output /tmp/hw-wiki-publish-preview` and diff against `HW-OpenClaw-wiki`.
 
 ## Main areas
 
-- [rtl](rtl/index.md)
-- [dv](dv/index.md)
-- [fv](fv/index.md)
-- [syn](syn/index.md)
-- [flows methods phylosophy](flows-methods-phylosophy/index.md)
+- [rtl](rtl/rtl.md)
+- [dv](dv/dv.md)
+- [fv](fv/fv.md)
+- [syn](syn/syn.md)
+- [flows methods phylosophy](flows-methods-phylosophy/flows-methods-phylosophy.md)
