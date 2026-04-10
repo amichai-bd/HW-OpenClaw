@@ -24,4 +24,4 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           WIKI_SYNC_TOKEN: ${{ github.token }}
-        run: python3 tools/wiki/publish_github_wiki.py
+        run: ./bin/wiki-publish

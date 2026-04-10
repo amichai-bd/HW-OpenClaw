@@ -36,6 +36,31 @@ from pathlib import Path
 
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
+_ASSET_EXT = frozenset(
+    {
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "svg",
+        "webp",
+        "css",
+        "js",
+        "json",
+        "pdf",
+        "zip",
+        "tar",
+        "gz",
+        "ico",
+        "bmp",
+        "ttf",
+        "woff",
+        "woff2",
+        "eot",
+        "otf",
+    }
+)
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -46,6 +71,19 @@ def should_rewrite_target(href: str) -> bool:
     if not href or href.startswith("#"):
         return False
     if href.startswith(("http://", "https://", "mailto:")):
+        return False
+    path_only = href.split("#", 1)[0].split("?", 1)[0].strip()
+    if not path_only:
+        return False
+    if path_only.endswith("/"):
+        return True
+    base = os.path.basename(path_only)
+    if "." in base:
+        ext = base.rsplit(".", 1)[-1].lower()
+        if ext == "md":
+            return True
+        if ext in _ASSET_EXT:
+            return False
         return False
     return True
 
