@@ -9,6 +9,7 @@ The repository is intended to be:
 - AI-native and CLI-first
 - structurally predictable across disciplines
 - gated by CI, PR-reference checks, PR-Agent review, and CodeRabbit review before auto-merge
+- explicit about the difference between repository-managed review checks and GitHub App review threads
 
 The wiki exists so that repository changes start from a written specification instead of from ad hoc code edits.
 
@@ -54,6 +55,14 @@ Before implementation work starts:
 6. open a gated pull request that also references the wiki
 7. review the final implementation against the wiki before merge
 8. keep ownership of the pull request until CI is green, PR-Agent findings, CodeRabbit findings, and review issues are fixed, and the pull request is merged
+
+   PR-Agent and CodeRabbit both participate in the merge gate, but they do so differently:
+
+   - PR-Agent runs as a repository-managed GitHub Actions check, guided by `.pr_agent.toml`
+   - CodeRabbit runs as a GitHub App review/check, guided by `.coderabbit.yaml`
+   - PR-Agent should produce structured findings that agents work through
+   - CodeRabbit can also hold the pull request open through unresolved review conversations when `request_changes_workflow: true` is enabled
+
 9. sync the local workspace back to `main`
 
 The important rule is not that every issue must change the wiki.

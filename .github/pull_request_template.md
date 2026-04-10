@@ -7,6 +7,7 @@ according to wiki wiki/
 - 
 - mention whether PR-Agent findings were handled or why none were raised
 - mention whether CodeRabbit findings / threads were handled or why none were raised
+- note any difference between PR-Agent structured findings and CodeRabbit review-thread handling if it mattered for this change
 
 ## Wiki Impact
 
@@ -24,4 +25,5 @@ according to wiki wiki/
 - [ ] this pull request is expected to stay owned until checks are green and merge completes
 - [ ] PR-Agent findings were handled before merge
 - [ ] CodeRabbit findings and review threads were handled before merge
+- [ ] any difference between PR-Agent check handling and CodeRabbit thread handling was reviewed on this pull request
 - [ ] native auto-merge should be enabled when this pull request is ready
