@@ -78,6 +78,12 @@ This wiki mirrors the source disciplines at the top level, but it is not meant t
 
 Use the sidebar and the discipline overview pages first.
 
+### GitHub Wiki tab versus this `wiki/` tree
+
+The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is a generated mirror: CI clones the wiki git repository (`*.wiki.git`), copies this tree into it, rewrites internal links to GitHub Wiki URLs so navigation works, writes a small footer, commits, and pushes. Prefer editing markdown here through pull requests; edits made only in the Wiki web editor can be overwritten on the next sync.
+
+Automation lives in `tools/wiki/publish_github_wiki.py` (invoked from `.github/workflows/wiki-sync.yml`).
+
 ## Main areas
 
 - [rtl](rtl/index.md)
