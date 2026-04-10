@@ -80,7 +80,9 @@ Use the sidebar and the discipline overview pages first.
 
 ### GitHub Wiki tab versus this `wiki/` tree
 
-The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is a generated mirror: CI clones the wiki git repository (`*.wiki.git`), copies this tree into it, rewrites internal links to GitHub Wiki URLs so navigation works, writes a small footer, commits, and pushes. Prefer editing markdown here through pull requests; edits made only in the Wiki web editor can be overwritten on the next sync.
+The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is a generated mirror: CI clones the wiki git repository (`*.wiki.git`), **flattens** each `*.md` file into a **separate wiki page** at the wiki root (unique slug: path with `/` replaced by `-`, e.g. `rtl/index.md` → page `rtl-index`), rewrites links to `https://github.com/<owner>/<repo>/wiki/<slug>` so clicks stay in the **rendered** wiki instead of opening raw markdown, writes `_Footer.md`, commits, and pushes.
+
+GitHub Wiki treats page identity mostly by **file basename**, so nested `index.md` files would collide if mirrored literally; the publisher avoids that. Prefer editing markdown here through pull requests; edits made only in the Wiki web editor can be overwritten on the next sync.
 
 Automation runs through `bin/wiki-publish` (implementation `tools/wiki/publish_github_wiki.py`), invoked from `.github/workflows/wiki-sync.yml`.
 
