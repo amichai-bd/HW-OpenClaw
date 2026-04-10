@@ -1,3 +1,7 @@
 workdir/
 __pycache__/
 *.pyc
+
+# Local clone of the GitHub Wiki repo for inspection (not part of this tree).
+# Example: git clone https://github.com/amichai-bd/HW-OpenClaw.wiki.git HW-OpenClaw-wiki
+HW-OpenClaw-wiki/

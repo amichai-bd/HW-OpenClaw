@@ -86,6 +86,14 @@ GitHub Wiki treats page identity mostly by **file basename**, so nested `index.m
 
 Automation runs through `bin/wiki-publish` (implementation `tools/wiki/publish_github_wiki.py`), invoked from `.github/workflows/wiki-sync.yml`.
 
+To **inspect the live published wiki as a git tree** (optional), from the repository root clone the wiki remote into the ignored folder `HW-OpenClaw-wiki` (see root `.gitignore`):
+
+```sh
+git clone https://github.com/amichai-bd/HW-OpenClaw.wiki.git HW-OpenClaw-wiki
+```
+
+To compare with what CI would publish from this `wiki/` tree, run `./bin/wiki-publish --dry-run --output /tmp/hw-wiki-publish-preview` and diff against `HW-OpenClaw-wiki`.
+
 ## Main areas
 
 - [rtl](rtl/index.md)
