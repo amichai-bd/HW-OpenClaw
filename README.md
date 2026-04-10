@@ -145,6 +145,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - CodeRabbit is also part of the intended PR review gate for this public repository. Its request-changes workflow should keep review threads active until the corresponding findings are resolved.
 - PR-Agent review comments are expected to use a structured `Summary` / `Findings` / `Final status` format so blocking findings are easy to distinguish from informational notes.
 - CodeRabbit is configured with `request_changes_workflow: true` so its review comments can participate directly in the merge-blocking conversation-resolution flow once the app is installed.
+- The first live CodeRabbit-reviewed pull request should be used to capture the exact GitHub check name before adding CodeRabbit to required branch protection checks.
 - The repository secret used by PR-Agent is `OPENAI_KEY`, and the action should stay pinned to an explicit upstream release instead of floating on `@main`.
 - The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
