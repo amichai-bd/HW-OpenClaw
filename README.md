@@ -129,7 +129,7 @@ Repository structure can be validated explicitly per IP:
 ./build -ip counter -validate -lint -fv -synth -regress level_2
 ```
 
-The validation flow checks that the IP structure, config references, source filelists, and mirrored wiki pages match the repository contract before deeper discipline flows run.
+The validation flow checks that the IP structure, config references, source filelists, mirrored wiki pages, and a deterministic subset of the repository style rules match the repository contract before deeper discipline flows run. Each validation run emits a `workdir/<tag>/<ip>/validate/validate_report.txt` artifact listing the checked handwritten sources and any violations.
 
 ## CI
 

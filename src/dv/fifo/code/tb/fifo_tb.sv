@@ -26,8 +26,10 @@ module fifo_tb;
         .empty(vif.empty)
     );
 
-    initial vif.clk = 0;
-    always #5 vif.clk = ~vif.clk;
+    initial begin
+        vif.clk = 0;
+        forever #5 vif.clk = ~vif.clk;
+    end
 
     task automatic apply_reset();
     begin

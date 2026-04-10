@@ -149,6 +149,8 @@ def get_ip_data(ip_name: str) -> dict:
             "generated_dv_filelist",
             "generated_all_filelist",
             "generated_fv_filelist",
+            "validate_out_dir",
+            "validate_report",
             "lint_out_dir",
             "lint_log",
             "fv_out_dir",
@@ -409,6 +411,8 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["generated_fv_filelist"] = resolve_path(
         apply_template(layout["generated_fv_filelist"], ip_data)
     )
+    ip_data["validate_out_dir"] = resolve_path(apply_template(layout["validate_out_dir"], ip_data))
+    ip_data["validate_report"] = resolve_path(apply_template(layout["validate_report"], ip_data))
     ip_data["lint_out_dir"] = resolve_path(apply_template(layout["lint_out_dir"], ip_data))
     ip_data["fv_out_dir"] = resolve_path(apply_template(layout["fv_out_dir"], ip_data))
     ip_data["fv_run_dir"] = resolve_path(apply_template(layout["fv_run_dir"], ip_data))
@@ -1281,12 +1285,125 @@ def validate_filelist_tree(filelist_path: Path, visited: set[Path]) -> None:
             raise BuildError(f"missing source file in {resolved_filelist}:{line_number}: {source_path}")
 
 
+def collect_filelist_sources(filelist_path: Path, visited: set[Path], sources: set[Path]) -> None:
+    resolved_filelist = filelist_path.resolve()
+    if resolved_filelist in visited:
+        return
+    visited.add(resolved_filelist)
+    if not resolved_filelist.is_file():
+        raise BuildError(f"missing filelist: {resolved_filelist}")
+
+    for raw_line in resolved_filelist.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("+incdir+"):
+            continue
+        if line.startswith("-F "):
+            nested_path = line[3:].strip().replace("$MODEL_ROOT", str(REPO_ROOT))
+            collect_filelist_sources(Path(nested_path), visited, sources)
+            continue
+        sources.add(Path(line.replace("$MODEL_ROOT", str(REPO_ROOT))).resolve())
+
+
 def validate_exists(path_text: str, kind: str) -> None:
     path = (REPO_ROOT / path_text).resolve()
     if kind == "file" and not path.is_file():
         raise BuildError(f"missing file: {path}")
     if kind == "dir" and not path.is_dir():
         raise BuildError(f"missing directory: {path}")
+
+
+def iter_sv_sources(root: Path) -> list[Path]:
+    return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix in {".sv", ".svh"})
+
+
+def strip_line_comments(line: str, in_block_comment: bool) -> tuple[str, bool]:
+    cleaned = []
+    index = 0
+    while index < len(line):
+        if in_block_comment:
+            end_index = line.find("*/", index)
+            if end_index == -1:
+                return "".join(cleaned), True
+            index = end_index + 2
+            in_block_comment = False
+            continue
+
+        if line.startswith("/*", index):
+            in_block_comment = True
+            index += 2
+            continue
+        if line.startswith("//", index):
+            break
+        cleaned.append(line[index])
+        index += 1
+    return "".join(cleaned), in_block_comment
+
+
+ALWAYS_PATTERN = re.compile(r"(?<![\w$])always(?!_(?:comb|ff|latch)\b)")
+INLINE_LOGIC_INIT_PATTERN = re.compile(r"^\s*logic\b[^;]*=")
+NONBLOCKING_ASSIGN_PATTERN = re.compile(
+    r"^\s*[A-Za-z_][\w$]*(?:\s*\[[^]]+\])?(?:\s*\.[A-Za-z_][\w$]*(?:\s*\[[^]]+\])?)*\s*<=\s*.+;"
+)
+
+
+def validate_style_file(path: Path) -> list[str]:
+    violations: list[str] = []
+    allow_nonblocking = path.name == "macros.svh"
+    in_block_comment = False
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line, in_block_comment = strip_line_comments(raw_line, in_block_comment)
+        if not line.strip():
+            continue
+        if ALWAYS_PATTERN.search(line):
+            violations.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: plain 'always' is not allowed")
+        if INLINE_LOGIC_INIT_PATTERN.search(line):
+            violations.append(
+                f"{path.relative_to(REPO_ROOT)}:{line_number}: inline 'logic' initialization or assignment is not allowed"
+            )
+        if not allow_nonblocking and NONBLOCKING_ASSIGN_PATTERN.search(line):
+            violations.append(
+                f"{path.relative_to(REPO_ROOT)}:{line_number}: handwritten non-blocking assignment is not allowed"
+            )
+    if path.name != path.name.lower():
+        violations.append(f"{path.relative_to(REPO_ROOT)}: file name must be lowercase")
+    return violations
+
+
+def collect_validation_style_files(context: dict) -> list[Path]:
+    style_files: set[Path] = set()
+
+    rtl_filelist_sources: set[Path] = set()
+    collect_filelist_sources((REPO_ROOT / context["rtl_filelist"]).resolve(), set(), rtl_filelist_sources)
+    style_files.update(rtl_filelist_sources)
+
+    style_files.update(iter_sv_sources((REPO_ROOT / f"src/dv/{context['ip']}/code").resolve()))
+    style_files.update(iter_sv_sources((REPO_ROOT / f"src/fv/{context['ip']}").resolve()))
+    style_files.update(iter_sv_sources((REPO_ROOT / "src/fv/common/assumptions").resolve()))
+    style_files.update(iter_sv_sources((REPO_ROOT / "src/rtl/common/include").resolve()))
+    return sorted(style_files)
+
+
+def write_validation_report(context: dict, checked_files: list[Path], violations: list[str]) -> None:
+    report_path = (REPO_ROOT / context["validate_report"]).resolve()
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        f"ip: {context['ip']}",
+        f"checked_files: {len(checked_files)}",
+        f"violations: {len(violations)}",
+        "",
+        "checked:",
+    ]
+    lines.extend(f"- {path.relative_to(REPO_ROOT)}" for path in checked_files)
+    lines.append("")
+    lines.append("violations:")
+    if violations:
+        lines.extend(f"- {violation}" for violation in violations)
+    else:
+        lines.append("- none")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def validate_structure(context: dict) -> None:
@@ -1309,6 +1426,7 @@ def validate_structure(context: dict) -> None:
             "fv_top",
             "fv_filelist",
             "synth_profile",
+            "validate_report",
         ],
         f"ip.{context['ip']}",
     )
@@ -1358,6 +1476,15 @@ def validate_structure(context: dict) -> None:
     validate_filelist_tree((REPO_ROOT / context["dv_filelist"]).resolve(), set())
     validate_filelist_tree((REPO_ROOT / context["all_filelist"]).resolve(), set())
     validate_filelist_tree((REPO_ROOT / context["fv_filelist"]).resolve(), set())
+
+    checked_files = collect_validation_style_files(context)
+    violations: list[str] = []
+    for path in checked_files:
+        violations.extend(validate_style_file(path))
+
+    write_validation_report(context, checked_files, violations)
+    if violations:
+        raise BuildError(f"style validation failed with {len(violations)} violation(s)")
 
 
 def run_step(
