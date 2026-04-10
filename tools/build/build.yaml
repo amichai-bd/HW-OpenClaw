@@ -71,6 +71,14 @@ targets:
     review_files:
       - "{ip_root}"
 
+  validate:
+    root_steps:
+      - validate_structure
+    review_files:
+      - "{rtl_filelist}"
+      - "{dv_filelist}"
+      - "{fv_filelist}"
+
 steps:
   prepare:
     display_name: "prepare {ip}"
@@ -156,3 +164,13 @@ steps:
       - "{ip_root}/regressions/{regress_name}"
     commands:
       - action: run_regression
+
+  validate_structure:
+    display_name: "validate {ip}"
+    depends_on: []
+    review_files:
+      - "{rtl_filelist}"
+      - "{dv_filelist}"
+      - "{fv_filelist}"
+    commands:
+      - action: validate_structure

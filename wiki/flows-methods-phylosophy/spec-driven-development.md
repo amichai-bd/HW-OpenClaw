@@ -15,6 +15,7 @@ The specification is the version-controlled `wiki/` tree.
 - if code reveals ambiguity, missing detail, or a wrong assumption in the wiki, the wiki should be clarified as part of the change
 - if the issue is only an implementation bug under an already-correct spec, `src/` may change without a wiki edit, but the issue must still reference the wiki
 - once the issue becomes a pull request, the agent should keep ownership of it until CI is green, review feedback is resolved, PR-Agent findings are handled, and the pull request merges
+- repository bootstrap and structural validation should be part of the normal spec contract, not ad hoc local knowledge
 
 ## Change categories
 

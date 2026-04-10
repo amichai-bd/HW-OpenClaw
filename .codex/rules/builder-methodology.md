@@ -41,9 +41,11 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 ## Entrypoint rules
 
 - `. cfg/env.sh` is the shell entrypoint
+- `./setup` is the required repository bootstrap entrypoint for fresh clones and CI provisioning
 - `./build` is the required user-facing repository entrypoint
+- `./build -validate` is the standard repository structure validation flow for one IP
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
-- CI should invoke the same builder entrypoint used locally
+- CI should invoke the same setup and builder entrypoints used locally
 
 ## Avoid
 
@@ -52,3 +54,4 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - workflow meaning hidden only in Python
 - output layouts invented inside scripts instead of derived from config
 - hidden defaults that are not visible in the YAML source of truth
+- repo structure drift that could have been caught by a validator but was left implicit

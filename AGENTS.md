@@ -116,10 +116,12 @@ Useful `.codex/rules/` files by topic:
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
 - `./build` is the required user-facing entry point for simulation, formal, synthesis, and related flows.
+- `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
 - Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.
+- `-validate` is the standard repository structure check for an IP and should be used before or alongside other discipline flows when structural drift is a concern.
 - Shared prerequisites such as generated filelists and compile should run once per invocation when needed.
 - `-debug` remains standalone.
 - `-test` and `-regress` remain mutually exclusive in a single invocation.
-- GitHub Actions gates should invoke the same repository builder and config used locally rather than re-encoding tool logic in workflow YAML.
+- GitHub Actions gates should invoke the same repository setup and builder entrypoints used locally rather than re-encoding tool logic in workflow YAML.
 - GitHub Actions PR gates should include the PR-Agent review action with repository-specific instructions from the repo-root `.pr_agent.toml`.

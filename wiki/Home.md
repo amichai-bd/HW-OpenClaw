@@ -21,6 +21,11 @@ If you are new to the repository, read these first:
 - [repo-structure](flows-methods-phylosophy/repo-structure.md)
 - [builder-methodology](flows-methods-phylosophy/builder-methodology.md)
 
+For a fresh clone:
+
+- run `./setup`
+- then use `./build`
+
 If you are changing code in a discipline, jump directly to:
 
 - [rtl overview](rtl/index.md)

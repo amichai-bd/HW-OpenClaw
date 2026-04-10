@@ -9,6 +9,12 @@ The builder should stay declarative and YAML-driven.
 - successful output should be human-readable and machine-friendly
 - build collateral should be structured under `workdir/<tag>/<ip>/...`
 
+The repository bootstrap path should also stay standard:
+
+- `./setup` is the fresh-clone and CI provisioning entrypoint
+- `./build` is the execution entrypoint
+- CI should use those same entrypoints instead of re-encoding package and tool logic
+
 ## UX intent
 
 Builder output should help a human or an AI understand:
@@ -25,3 +31,11 @@ The builder should prefer:
 - structured status lines
 - stable artifact paths
 - minimal ambiguity in failure output
+
+## Structural validation
+
+The repository should be able to validate its own structural contract.
+
+- `./build -ip <ip> -validate` is the standard structure-validation flow
+- validation should check config references, filelists, mirrored wiki pages, and discipline layout
+- larger IPs should enter the repository only after passing the same structural contract
