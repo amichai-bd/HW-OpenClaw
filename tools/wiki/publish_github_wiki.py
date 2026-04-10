@@ -72,8 +72,12 @@ def should_rewrite_target(href: str) -> bool:
         return False
     if href.startswith(("http://", "https://", "mailto:")):
         return False
+    if href.startswith("/"):
+        return False
     path_only = href.split("#", 1)[0].split("?", 1)[0].strip()
     if not path_only:
+        return False
+    if path_only.startswith("/"):
         return False
     if path_only.endswith("/"):
         return True
@@ -161,16 +165,7 @@ def transform_tree(dest: Path, owner: str, repo: str) -> None:
     (dest / "_Footer.md").write_text(render_footer(owner, repo), encoding="utf-8", newline="\n")
 
 
-def copy_source_tree(source: Path, dest: Path) -> None:
-    if not source.is_dir():
-        sys.exit(f"wiki source missing: {source}")
-    for child in dest.iterdir():
-        if child.name == ".git":
-            continue
-        if child.is_dir():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
+def _copy_wiki_entries(source: Path, dest: Path) -> None:
     for entry in source.iterdir():
         if entry.name.startswith("."):
             continue
@@ -181,21 +176,44 @@ def copy_source_tree(source: Path, dest: Path) -> None:
             shutil.copy2(entry, target)
 
 
+def copy_source_tree(source: Path, dest: Path, *, destructive: bool) -> None:
+    if not source.is_dir():
+        sys.exit(f"wiki source missing: {source}")
+    if destructive:
+        for child in dest.iterdir():
+            if child.name == ".git":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    else:
+        if dest.exists() and any(dest.iterdir()):
+            sys.exit(f"refusing dry-run: destination {dest} is not empty (pick a new path or remove files)")
+        dest.mkdir(parents=True, exist_ok=True)
+    _copy_wiki_entries(source, dest)
+
+
+def _git(token: str, args: list[str], *, cwd: Path | None = None) -> None:
+    """Run git with Authorization header (avoid embedding the token in remote URLs)."""
+    header = f"AUTHORIZATION: token {token}"
+    subprocess.run(["git", "-c", f"http.extraHeader={header}", *args], cwd=cwd, check=True)
+
+
 def git_commit_push(workdir: Path, token: str, remote_repo: str) -> None:
-    def run(cmd: list[str]) -> None:
+    def run_local(cmd: list[str]) -> None:
         subprocess.run(cmd, cwd=workdir, check=True)
 
-    run(["git", "config", "user.name", "github-actions[bot]"])
-    run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"])
-    run(["git", "add", "-A"])
+    run_local(["git", "config", "user.name", "github-actions[bot]"])
+    run_local(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"])
+    run_local(["git", "add", "-A"])
     st = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=workdir)
     if st.returncode == 0:
         print("no wiki changes to publish")
         return
-    run(["git", "commit", "-m", "sync wiki from main repository (automated)"])
-    url = f"https://x-access-token:{token}@github.com/{remote_repo}.wiki.git"
-    run(["git", "remote", "set-url", "origin", url])
-    run(["git", "push", "origin", "HEAD"])
+    run_local(["git", "commit", "-m", "sync wiki from main repository (automated)"])
+    plain_url = f"https://github.com/{remote_repo}.wiki.git"
+    _git(token, ["push", plain_url, "HEAD"], cwd=workdir)
 
 
 def parse_owner_repo(full: str) -> tuple[str, str]:
@@ -240,9 +258,7 @@ def main() -> None:
         out = args.output
         if out is None:
             out = Path(tempfile.mkdtemp(prefix="wiki-publish-"))
-        else:
-            out.mkdir(parents=True, exist_ok=True)
-        copy_source_tree(source, out)
+        copy_source_tree(source, out, destructive=False)
         transform_tree(out, owner, repo)
         print(f"dry-run: transformed wiki written to {out}")
         return
@@ -253,9 +269,9 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="hw-openclaw-wiki-") as tmp:
         clone = Path(tmp) / "wiki.git"
-        url = f"https://x-access-token:{token}@github.com/{full}.wiki.git"
-        subprocess.run(["git", "clone", url, str(clone)], check=True)
-        copy_source_tree(source, clone)
+        plain_url = f"https://github.com/{full}.wiki.git"
+        _git(token, ["clone", plain_url, str(clone)])
+        copy_source_tree(source, clone, destructive=True)
         transform_tree(clone, owner, repo)
         git_commit_push(clone, token, full)
 
