@@ -134,22 +134,21 @@ The QA flow checks that the IP structure, config references, source filelists, m
 ## CI
 
 - GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
-- The main CI gate lives in [.github/workflows/ci.yml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/ci.yml).
-- Spec-reference enforcement runs as separate [issue-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/issue-reference.yml) and [pr-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
-- PR review enforcement also runs through [pr-agent](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.pr_agent.toml).
-- CodeRabbit is configured from the repo-root [.coderabbit.yaml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.coderabbit.yaml) and is intended to run alongside PR-Agent on this public repository once the CodeRabbit GitHub App is installed.
+- The main CI gate lives in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+- Spec-reference enforcement runs as separate [issue-reference](.github/workflows/issue-reference.yml) and [pr-reference](.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
+- PR review enforcement also runs through [pr-agent](.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](.pr_agent.toml).
+- CodeRabbit is configured from the repo-root [.coderabbit.yaml](.coderabbit.yaml) and runs alongside PR-Agent on this public repository through the CodeRabbit GitHub App.
 - The current CI uses one `gate` job on `ubuntu-latest`.
 - That job uses the same repo bootstrap entrypoint as local development, then runs two explicit builder invocations: one for `fifo` and one for `counter`.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
-- PR-Agent is part of the normal PR gate. Agents are expected to handle PR-Agent findings before merge, just as they would handle review feedback from a human reviewer.
-- CodeRabbit is also part of the intended PR review gate for this public repository. Its request-changes workflow should keep review threads active until the corresponding findings are resolved.
+- PR-Agent is part of the normal PR gate. It runs as a repository-managed GitHub Actions check and is configured by `.pr_agent.toml`.
+- CodeRabbit is also part of the normal PR gate. It runs as the CodeRabbit GitHub App, is configured by `.coderabbit.yaml`, and can block merge both through its required `CodeRabbit` check and through unresolved review conversations.
 - PR-Agent review comments are expected to use a structured `Summary` / `Findings` / `Final status` format so blocking findings are easy to distinguish from informational notes.
-- CodeRabbit is configured with `request_changes_workflow: true` so its review comments can participate directly in the merge-blocking conversation-resolution flow once the app is installed.
-- The first live CodeRabbit-reviewed pull request should be used to capture the exact GitHub check name before adding CodeRabbit to required branch protection checks.
+- CodeRabbit is configured with `request_changes_workflow: true` so its review comments can participate directly in the merge-blocking conversation-resolution flow.
 - The repository secret used by PR-Agent is `OPENAI_KEY`, and the action should stay pinned to an explicit upstream release instead of floating on `@main`.
 - The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
 - GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
-- CodeRabbit itself is installed as a GitHub App rather than a repo-authored Actions workflow, so the remaining setup step is the one-time GitHub App installation on the public repo before its check name can be added to branch protection.
+- CodeRabbit itself is installed as a GitHub App rather than a repo-authored Actions workflow, while PR-Agent is a repo-authored GitHub Actions workflow. That difference is intentional and is part of the normal gate design.
 
 ## Current flow
 
@@ -189,6 +188,9 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - After a pull request is opened, keep ownership of it until it is green, merged, and synced back to local `main`.
 - PR-Agent findings are part of the PR ownership model. If PR-Agent raises review findings, address them on the same branch before merge.
 - CodeRabbit findings and open review threads are also part of the PR ownership model. If CodeRabbit raises review findings, address them on the same branch before merge.
+- Treat the two review systems slightly differently:
+  - PR-Agent is primarily a required CI-style review check plus structured review comment.
+  - CodeRabbit is primarily a required GitHub App review/check that can also hold merge through unresolved review threads.
 - Native GitHub auto-merge is the expected finish path once the required PR/build checks and conversation-resolution requirements are satisfied.
 - The agent that opened the pull request should keep polling its checks and review state, fix issues on the same branch, and stay with it until merge completes.
 - Merge, delete the branch, and sync local workspaces back to `main`.
