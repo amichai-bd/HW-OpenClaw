@@ -40,6 +40,8 @@ workdir/ generated run outputs
 - If CodeRabbit raises findings or review threads, address them before merge. Do not leave CodeRabbit findings unresolved and assume the pull request is ready anyway.
 - PR-Agent should answer in the repository-defined structured format from `.pr_agent.toml`. Agents should use that structure to decide what is blocking, what is informational, and what needs a code or doc fix.
 - PR-Agent and CodeRabbit have different gate surfaces. PR-Agent is the repository-managed GitHub Actions review gate configured by `.pr_agent.toml`. CodeRabbit is the GitHub App review gate configured by `.coderabbit.yaml` and can also block merge through unresolved review conversations.
+- If `main` advanced while a pull request stayed open, merge current `main` into the branch (or rebase) and push so gates and reviews run against an up-to-date base.
+- If the PR-Agent workflow concludes **cancelled** rather than **failure**, re-run that workflow run or push to the branch; treat that as automation or concurrency, not a completed PR-Agent verdict.
 - The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
 - After merge, delete the branch locally and on origin.
 - If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.
