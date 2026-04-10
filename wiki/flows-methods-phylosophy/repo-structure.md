@@ -12,6 +12,11 @@ The repository uses a predictable mirrored structure so humans and AI agents can
 - `bin/` and repo-root entrypoints expose user-facing commands
 - `workdir/` owns generated run collateral
 
+Standard repository entrypoints:
+
+- `./setup` for fresh-clone bootstrap and CI provisioning
+- `./build` for validation and discipline execution
+
 ## Source disciplines
 
 The major source disciplines are intentionally separated:
@@ -73,3 +78,5 @@ The structure should help answer these questions quickly:
 - where do generated artifacts go?
 
 If a new directory or tool makes those answers less obvious, the structure should be reconsidered.
+
+The repository should also validate these answers automatically through the standard structure-validation flow rather than depending only on review memory.

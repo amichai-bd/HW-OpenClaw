@@ -84,6 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run project build steps")
     parser.add_argument("-ip", help="IP name to build")
     parser.add_argument("-tag", help="run tag for the output directory")
+    parser.add_argument("-validate", action="store_true", help="validate repository structure for one IP")
     parser.add_argument("-lint", action="store_true", help="run lint step")
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
@@ -102,6 +103,7 @@ def parse_args() -> argparse.Namespace:
             1 if args.test else 0,
             1 if args.regress else 0,
             1 if args.debug else 0,
+            1 if args.validate else 0,
         ]
     )
     if args.debug and requested_modes != 1:
@@ -494,6 +496,7 @@ def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
 
 def prompt_for_modes() -> list[str] | None:
     mode_items = [
+        ("validate", "-validate"),
         ("lint", "-lint"),
         ("fv", "-fv"),
         ("synth", "-synth"),
@@ -534,6 +537,7 @@ def prompt_for_modes() -> list[str] | None:
 
 
 def apply_selected_modes(args: argparse.Namespace, selected_modes: list[str]) -> None:
+    args.validate = "validate" in selected_modes
     args.lint = "lint" in selected_modes
     args.fv = "fv" in selected_modes
     args.synth = "synth" in selected_modes
@@ -559,6 +563,8 @@ def build_resolved_command(args: argparse.Namespace) -> str:
         parts.extend(["-ip", args.ip])
     if args.tag:
         parts.extend(["-tag", args.tag])
+    if args.validate:
+        parts.append("-validate")
     if args.lint:
         parts.append("-lint")
     if args.fv:
@@ -645,6 +651,8 @@ def resolve_requested_targets(args: argparse.Namespace) -> list[str]:
     targets: list[str] = []
     if args.debug:
         return ["debug"]
+    if args.validate:
+        targets.append("validate")
     if args.lint:
         targets.append("lint")
     if args.fv:
@@ -1198,6 +1206,9 @@ def resolve_fv_solver(context: dict) -> tuple[str, str]:
 
 
 def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
+    if isinstance(command, dict) and command.get("action") == "validate_structure":
+        validate_structure(context)
+        return
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         prepare_filelists(context)
         return
@@ -1240,6 +1251,113 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
         if result.stderr:
             print(result.stderr, end="", file=sys.stderr)
         raise BuildError(f"command failed with exit code {result.returncode}")
+
+
+def validate_filelist_tree(filelist_path: Path, visited: set[Path]) -> None:
+    resolved_filelist = filelist_path.resolve()
+    if resolved_filelist in visited:
+        return
+    visited.add(resolved_filelist)
+    if not resolved_filelist.is_file():
+        raise BuildError(f"missing filelist: {resolved_filelist}")
+
+    for line_number, raw_line in enumerate(resolved_filelist.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("+incdir+"):
+            include_path = line[len("+incdir+") :].strip().replace("$MODEL_ROOT", str(REPO_ROOT))
+            include_dir = Path(include_path)
+            if not include_dir.is_dir():
+                raise BuildError(f"missing include directory in {resolved_filelist}:{line_number}: {include_dir}")
+            continue
+        if line.startswith("-F "):
+            nested_path = line[3:].strip().replace("$MODEL_ROOT", str(REPO_ROOT))
+            validate_filelist_tree(Path(nested_path), visited)
+            continue
+
+        source_path = Path(line.replace("$MODEL_ROOT", str(REPO_ROOT)))
+        if not source_path.is_file():
+            raise BuildError(f"missing source file in {resolved_filelist}:{line_number}: {source_path}")
+
+
+def validate_exists(path_text: str, kind: str) -> None:
+    path = (REPO_ROOT / path_text).resolve()
+    if kind == "file" and not path.is_file():
+        raise BuildError(f"missing file: {path}")
+    if kind == "dir" and not path.is_dir():
+        raise BuildError(f"missing directory: {path}")
+
+
+def validate_structure(context: dict) -> None:
+    require_keys(
+        context,
+        [
+            "rtl_filelist",
+            "rtl_module",
+            "dv_filelist",
+            "all_filelist",
+            "rtl_top",
+            "lint_dir",
+            "lint_waiver",
+            "dv_top",
+            "tb_top_module",
+            "sim_binary",
+            "regression_dir",
+            "test_dir",
+            "fv_profile",
+            "fv_top",
+            "fv_filelist",
+            "synth_profile",
+        ],
+        f"ip.{context['ip']}",
+    )
+
+    required_dirs = [
+        f"src/rtl/{context['ip']}/code",
+        f"src/rtl/{context['ip']}/lint",
+        f"src/dv/{context['ip']}/code/if",
+        f"src/dv/{context['ip']}/code/pkg",
+        f"src/dv/{context['ip']}/code/env",
+        f"src/dv/{context['ip']}/code/tb",
+        f"src/dv/{context['ip']}/code/tests",
+        f"src/dv/{context['ip']}/filelist",
+        f"src/dv/{context['ip']}/regressions",
+        f"src/fv/{context['ip']}/code",
+        f"src/fv/{context['ip']}/properties",
+        f"src/fv/{context['ip']}/proofs",
+    ]
+    required_files = [
+        context["rtl_filelist"],
+        context["dv_filelist"],
+        context["all_filelist"],
+        context["rtl_top"],
+        context["lint_waiver"],
+        context["fv_filelist"],
+        f"wiki/rtl/{context['ip']}/index.md",
+        f"wiki/dv/{context['ip']}/index.md",
+        f"wiki/fv/{context['ip']}/index.md",
+        "wiki/rtl/index.md",
+        "wiki/dv/index.md",
+        "wiki/fv/index.md",
+        "wiki/flows-methods-phylosophy/repo-structure.md",
+        "wiki/flows-methods-phylosophy/builder-methodology.md",
+    ]
+
+    for dir_path in required_dirs:
+        validate_exists(dir_path, "dir")
+    for file_path in required_files:
+        validate_exists(file_path, "file")
+
+    validate_exists(context["dv_top"], "dir")
+    validate_exists(context["lint_dir"], "dir")
+    validate_exists(context["regression_dir"], "dir")
+    validate_exists(context["test_dir"], "dir")
+
+    validate_filelist_tree((REPO_ROOT / context["rtl_filelist"]).resolve(), set())
+    validate_filelist_tree((REPO_ROOT / context["dv_filelist"]).resolve(), set())
+    validate_filelist_tree((REPO_ROOT / context["all_filelist"]).resolve(), set())
+    validate_filelist_tree((REPO_ROOT / context["fv_filelist"]).resolve(), set())
 
 
 def run_step(

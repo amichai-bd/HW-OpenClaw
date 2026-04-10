@@ -7,7 +7,8 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 ```text
 .
 ├── bin/
-│   └── build
+│   ├── build
+│   └── setup
 ├── wiki/
 │   ├── Home.md
 │   ├── dv/
@@ -83,10 +84,10 @@ HW-OpenClaw is a hardware-design repository driven through short task cycles, wi
 
 ## Quick start
 
-Source the repository environment first:
+For normal repository usage, bootstrap first:
 
 ```sh
-. cfg/env.sh
+./setup
 ```
 
 Then invoke the builder through the standard repo launcher:
@@ -110,7 +111,25 @@ To browse saved waveform runs:
 
 That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets you pick one to open in GTKWave.
 
-The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delegates to `bin/build`. The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
+The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delegates to `bin/build`. Source `. cfg/env.sh` directly only when you want the shell environment for manual tool use outside the standard repo entrypoints. The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
+
+For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint first:
+
+```sh
+./setup
+./setup --check
+```
+
+`./setup` installs the required open-source toolchain from the YAML-defined bootstrap contract in `cfg/env.yaml`, including Verilator, Yosys, SBY, GTKWave, and the formal solver dependencies. `./setup --check` verifies the installed toolchain without reinstalling it.
+
+Repository structure can be validated explicitly per IP:
+
+```sh
+./build -ip fifo -validate
+./build -ip counter -validate -lint -fv -synth -regress level_2
+```
+
+The validation flow checks that the IP structure, config references, source filelists, and mirrored wiki pages match the repository contract before deeper discipline flows run.
 
 ## CI
 
@@ -119,7 +138,7 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - Spec-reference enforcement runs as separate [issue-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/issue-reference.yml) and [pr-reference](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
 - PR review enforcement also runs through [pr-agent](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](/home/amichai/openclaw/workspaces/hw-design/HW-OpenClaw/.pr_agent.toml).
 - The current CI uses one `gate` job on `ubuntu-latest`.
-- That job has one plain setup block that installs the required open-source tools, then two explicit builder invocations: one for `fifo` and one for `counter`, each using `-lint -fv -synth -regress level_2`.
+- That job uses the same repo bootstrap entrypoint as local development, then runs two explicit builder invocations: one for `fifo` and one for `counter`.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
 - PR-Agent is part of the normal PR gate. Agents are expected to handle PR-Agent findings before merge, just as they would handle review feedback from a human reviewer.
 - PR-Agent review comments are expected to use a structured `Summary` / `Findings` / `Final status` format so blocking findings are easy to distinguish from informational notes.
@@ -134,6 +153,7 @@ The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delega
 - Targets declare root steps, tool requirements, optional selectors, and target-local context overlays.
 - Steps declare `depends_on`, commands or actions, display names, and review artifacts.
 - The Python builder resolves the selected targets, computes the dependency graph from `depends_on`, and runs independent disciplines in parallel when they do not depend on one another.
+- The builder also provides a structure-validation target so repository contracts can be checked explicitly before larger flows run.
 - RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
 - Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current formal flow is selected through `cfg/fv.yaml`.

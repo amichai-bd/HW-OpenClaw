@@ -24,21 +24,11 @@ jobs:
 
       - name: setup tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y verilator yosys boolector z3 python3-click
-          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
-          make -C /tmp/sby install PREFIX="$HOME/.local"
-          python3 --version
-          verilator --version
-          yosys -V
-          "$HOME/.local/bin/sby" --version
-          boolector --version
-          z3 --version
+          ./setup --ci
 
       - name: run fifo gate
         run: |
-          . cfg/env.sh
-          build -ip fifo -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"
+          ./build -ip fifo -validate -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"
 
       - name: upload fifo artifacts
         if: always()
@@ -50,8 +40,7 @@ jobs:
 
       - name: run counter gate
         run: |
-          . cfg/env.sh
-          build -ip counter -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_counter"
+          ./build -ip counter -validate -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_counter"
 
       - name: upload counter artifacts
         if: always()

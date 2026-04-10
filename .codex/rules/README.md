@@ -25,6 +25,9 @@ It is intentionally separate from the repo-root wiki:
    - `fv-methodology.md`
    - `synthesis-methodology.md`
    - `builder-methodology.md`
+4. when onboarding or hardening repository infrastructure:
+   - `builder-methodology.md`
+   - the standard repo entrypoints `./setup` and `./build`
 
 ## Rule hierarchy
 
