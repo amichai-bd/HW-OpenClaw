@@ -170,7 +170,7 @@ def install_sby(bootstrap: dict) -> None:
 def verify_tools(environment: dict, strict: bool = True) -> None:
     tools = get_tools(environment)
     print("tool verification:", flush=True)
-    for tool_name in ["python3", "verilator", "gtkwave", "yosys", "sby", "boolector", "z3"]:
+    for tool_name in ["python3", "verilator", "gtkwave", "dot", "yosys", "sby", "boolector", "z3"]:
         tool_cfg = tools.get(tool_name)
         if not isinstance(tool_cfg, dict):
             raise SetupError(f"missing tool config for '{tool_name}'")
