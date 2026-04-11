@@ -98,7 +98,14 @@ def find_inbox_id(api_key: str, inbox: str) -> str:
             sys.exit(f"AgentMail response missing inbox_id for matched inbox: {inbox}")
 
     available = ", ".join(
-        sorted(item.get("email", item.get("inbox_id", "")) for item in response.get("inboxes", []))
+        sorted(
+            str(label)
+            for label in (
+                item.get("email") or item.get("inbox_id")
+                for item in response.get("inboxes", [])
+            )
+            if label
+        )
     )
     sys.exit(f"AgentMail inbox not found: {inbox}; available: {available or 'none'}")
 
