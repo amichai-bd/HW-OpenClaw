@@ -22,7 +22,12 @@ def read_secret_file(path: Path) -> dict[str, str]:
     if not path.is_file():
         return values
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        sys.exit(f"failed to read AgentMail secret file {path}: {exc}")
+
+    for raw_line in lines:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -99,7 +104,10 @@ def read_body(args: argparse.Namespace) -> str:
     if args.text and args.text_file:
         sys.exit("use either --text or --text-file, not both")
     if args.text_file:
-        return args.text_file.read_text(encoding="utf-8")
+        try:
+            return args.text_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            sys.exit(f"failed to read message body file {args.text_file}: {exc}")
     if args.text:
         return args.text
     if not sys.stdin.isatty():
