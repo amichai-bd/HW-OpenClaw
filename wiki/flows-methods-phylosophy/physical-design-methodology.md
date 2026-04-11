@@ -35,10 +35,24 @@ The standard entry point is:
 ./build -ip fifo -pd
 ```
 
+Optional **local** opt-in after you install an OpenROAD-class backend:
+
+```sh
+./build -ip fifo -pd -pd-exec
+```
+
+`-pd-exec` requires `-pd`. It keeps the same DEF-stage scaffold artifacts, then
+checks that an `openroad` binary resolves (preferred path in `cfg/env.yaml` or
+`PATH`). It does **not** run a full ORFS place-and-route from the builder until
+that integration is implemented; the gate exists so local workflows can fail
+fast when the backend is missing. **CI must not** add `-pd` or `-pd-exec` to
+the default merge gate.
+
 The `pd` target depends on synthesis because physical design consumes the mapped
-netlist and synthesis summary. At the skeleton stage, the step writes
-`pd_summary.yaml` and then fails clearly if the declared backend executable is
-missing.
+netlist and synthesis summary. At the DEF-stage scaffold, the step emits
+deterministic review collateral from the synthesis JSON and IP-local PD intent:
+floorplan DEF, IO placement TCL, timing SDC, placed DEF, CTS report, route-stage
+DEF, timing/utilization review reports, PD log, and `pd_summary.yaml`.
 
 Generated PD collateral belongs under:
 
@@ -51,10 +65,21 @@ The planned artifact groups are:
 - `floorplan/`
 - `timing/`
 - `place/`
+- `reports/` for CTS, timing, utilization, and later signoff reports
 - `route/`
 - `signoff/`
-- `reports/`
 - `images/`
+
+## Software stack placement
+
+Physical design sits in **Tier 2** of the repository tool stack: it is the
+**place-and-route layer** that turns synthesis outputs into layout-oriented
+artifacts (DEF, and later GDS/SPEF and signoff reports). That layer is **not**
+part of the same bootstrap bundle as Verilator, Yosys, and SBY; separating them
+avoids conflating **logical netlists** with **physical implementation**.
+
+The split, CI scope, and rationale are documented in
+[software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
 
 ## Backend Strategy
 
@@ -70,3 +95,7 @@ allowing incremental integration:
 
 The repository should not pretend a real PDK-backed signoff flow exists before
 technology collateral and backend installation are handled explicitly.
+
+The current internal DEF scaffold is a review artifact generator, not a substitute
+for external OpenROAD execution or signoff. External backend tools must be declared
+in `cfg/pd.yaml` when they become required by a later stage.

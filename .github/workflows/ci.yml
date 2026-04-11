@@ -26,6 +26,7 @@ jobs:
         run: |
           ./setup --ci
 
+      # Tier-1 gate only: no -pd / -pd-exec (OpenROAD is manual Tier-2; keep CI fast).
       - name: run fifo gate
         run: |
           ./build -ip fifo -qa -lint -fv -synth -regress level_2 -tag "gh_${{ github.run_id }}_fifo"

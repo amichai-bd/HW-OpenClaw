@@ -69,12 +69,15 @@ workdir/ generated run outputs
 For detailed style and methodology, consult:
 - [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
 - [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
+- [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md)
 - [physical-design-methodology.md](./wiki/flows-methods-phylosophy/physical-design-methodology.md)
 - [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
 - [spec-driven-development.md](./wiki/flows-methods-phylosophy/spec-driven-development.md)
 
 ## Tool And Config Rules
 
+- The repository **software stack** is intentionally **two-tier**: `./setup` provisions **RTL, DV, FV, lint, and Yosys synthesis** for normal dev and CI; **physical place-and-route** is a **separate backend tier** (OpenROAD-class, declared in `cfg/pd.yaml`) so P&R is not conflated with logical synthesis. Rationale and boundaries: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md).
+- **`openroad`** (or the wired equivalent) is listed under `cfg/env.yaml` → `manual_tools` until the PD backend is integrated into bootstrap or CI; `./build -ip <ip> -pd` remains the PD entry point and should fail clearly if the profile requires a missing backend executable.
 - YAML files are the source of truth for repository tools.
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
 - If a tool needs build flow definitions, read them from the tool YAML file.
@@ -115,6 +118,7 @@ For detailed structure, consult:
 
 Useful first reads by topic:
 - structure and navigation: [repo-structure.md](./wiki/flows-methods-phylosophy/repo-structure.md)
+- toolchain tiers and PD backend: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md)
 - build flow and artifacts: [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
 - RTL rules: [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
 - DV rules: [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
@@ -136,6 +140,7 @@ Useful `.codex/rules/` files by topic:
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
 - `./build` is the required user-facing entry point for simulation, formal, synthesis, physical design, and related flows.
+- Physical design: `-pd` runs the scaffold; `-pd-exec` (requires `-pd`) is an optional **local** OpenROAD binary gate. Do **not** add `-pd` or `-pd-exec` to the default GitHub Actions merge gate unless the project explicitly opts into Tier-2 PD in CI.
 - `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
 - Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.

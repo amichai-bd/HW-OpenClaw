@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -94,6 +96,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
     parser.add_argument("-pd", action="store_true", help="run physical-design step")
+    parser.add_argument(
+        "-pd-exec",
+        action="store_true",
+        dest="pd_exec",
+        help=(
+            "after PD scaffold, require a resolvable OpenROAD binary (opt-in; "
+            "ORFS execution from the builder is not fully wired yet)"
+        ),
+    )
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run a named test")
     parser.add_argument("-regress", nargs="?", const=INTERACTIVE_SELECT, help="run a named regression")
@@ -185,10 +196,12 @@ def get_ip_data(ip_name: str) -> dict:
             "pd_io_placement_tcl",
             "pd_timing_sdc",
             "pd_placed_def",
+            "pd_cts_report",
             "pd_routed_def",
             "pd_final_gds",
             "pd_final_spef",
             "pd_timing_report",
+            "pd_utilization_report",
             "pd_drc_report",
             "pd_lvs_report",
             "pd_layout_svg",
@@ -596,10 +609,12 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["pd_io_placement_tcl"] = resolve_path(apply_template(layout["pd_io_placement_tcl"], ip_data))
     ip_data["pd_timing_sdc"] = resolve_path(apply_template(layout["pd_timing_sdc"], ip_data))
     ip_data["pd_placed_def"] = resolve_path(apply_template(layout["pd_placed_def"], ip_data))
+    ip_data["pd_cts_report"] = resolve_path(apply_template(layout["pd_cts_report"], ip_data))
     ip_data["pd_routed_def"] = resolve_path(apply_template(layout["pd_routed_def"], ip_data))
     ip_data["pd_final_gds"] = resolve_path(apply_template(layout["pd_final_gds"], ip_data))
     ip_data["pd_final_spef"] = resolve_path(apply_template(layout["pd_final_spef"], ip_data))
     ip_data["pd_timing_report"] = resolve_path(apply_template(layout["pd_timing_report"], ip_data))
+    ip_data["pd_utilization_report"] = resolve_path(apply_template(layout["pd_utilization_report"], ip_data))
     ip_data["pd_drc_report"] = resolve_path(apply_template(layout["pd_drc_report"], ip_data))
     ip_data["pd_lvs_report"] = resolve_path(apply_template(layout["pd_lvs_report"], ip_data))
     ip_data["pd_layout_svg"] = resolve_path(apply_template(layout["pd_layout_svg"], ip_data))
@@ -755,6 +770,8 @@ def build_resolved_command(args: argparse.Namespace) -> str:
         parts.append("-synth")
     if args.pd:
         parts.append("-pd")
+    if args.pd_exec:
+        parts.append("-pd-exec")
     if args.compile:
         parts.append("-compile")
     if args.test:
@@ -1462,8 +1479,309 @@ def validate_pd_intent(context: dict) -> None:
         raise BuildError(f"'period_ns' must be positive in ip.{context['ip']}.pd_constraints.timing")
 
 
+def load_synth_design(context: dict) -> dict:
+    synth_json_path = Path(context["synth_json"])
+    if not synth_json_path.is_file():
+        raise BuildError(f"missing synth JSON netlist: {synth_json_path}")
+    synth_data = json.loads(synth_json_path.read_text(encoding="utf-8"))
+    modules = synth_data.get("modules", {})
+    module_name = context["rtl_module"]
+    if not isinstance(modules, dict) or module_name not in modules:
+        raise BuildError(f"missing module '{module_name}' in synth JSON netlist")
+    module = modules[module_name]
+    if not isinstance(module, dict):
+        raise BuildError(f"module '{module_name}' must be a mapping in synth JSON netlist")
+    ports = module.get("ports", {})
+    cells = module.get("cells", {})
+    if not isinstance(ports, dict):
+        raise BuildError(f"module '{module_name}' ports must be a mapping in synth JSON netlist")
+    if not isinstance(cells, dict):
+        raise BuildError(f"module '{module_name}' cells must be a mapping in synth JSON netlist")
+    return {"ports": ports, "cells": cells}
+
+
+def dbu(value_um: float) -> int:
+    return int(round(value_um * 1000.0))
+
+
+def sanitize_def_name(name: str, fallback: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9_]", "_", str(name)).strip("_")
+    return sanitized or fallback
+
+
+def pd_dimensions(context: dict, cell_count: int) -> dict:
+    floorplan = context["pd_constraints"]["floorplan"]
+    utilization = float(floorplan["utilization"])
+    aspect_ratio = float(floorplan["aspect_ratio"])
+    margin_um = float(floorplan["core_margin_um"])
+    cell_area_um2 = max(1, cell_count) * 20.0
+    core_area_um2 = cell_area_um2 / utilization
+    core_height_um = math.sqrt(core_area_um2 / aspect_ratio)
+    core_width_um = core_height_um * aspect_ratio
+    die_width_um = core_width_um + (2.0 * margin_um)
+    die_height_um = core_height_um + (2.0 * margin_um)
+    return {
+        "core_width_um": core_width_um,
+        "core_height_um": core_height_um,
+        "die_width_um": die_width_um,
+        "die_height_um": die_height_um,
+        "margin_um": margin_um,
+        "cell_area_um2": cell_area_um2,
+        "core_area_um2": core_area_um2,
+        "target_utilization": utilization,
+    }
+
+
+def def_header(context: dict, dimensions: dict) -> list[str]:
+    return [
+        "VERSION 5.8 ;",
+        'DIVIDERCHAR "/" ;',
+        'BUSBITCHARS "[]" ;',
+        f"DESIGN {context['rtl_module']} ;",
+        "UNITS DISTANCE MICRONS 1000 ;",
+        f"DIEAREA ( 0 0 ) ( {dbu(dimensions['die_width_um'])} {dbu(dimensions['die_height_um'])} ) ;",
+    ]
+
+
+def def_pin_lines(context: dict, ports: dict, dimensions: dict) -> list[str]:
+    pin_layers = context["pd_constraints"]["io_boundary"]["pin_layers"]
+    pin_items = sorted(ports.items())
+    lines = [f"PINS {len(pin_items)} ;"]
+    for index, (name, port) in enumerate(pin_items):
+        safe_name = sanitize_def_name(name, f"PIN{index}")
+        direction = str(port.get("direction", "inout")).upper()
+        if direction not in {"INPUT", "OUTPUT", "INOUT"}:
+            direction = "INOUT"
+        layer = pin_layers[index % len(pin_layers)]
+        side = index % 4
+        step_x = dimensions["die_width_um"] / max(2, len(pin_items) + 1)
+        step_y = dimensions["die_height_um"] / max(2, len(pin_items) + 1)
+        if side == 0:
+            x_um, y_um = step_x * (index + 1), 0.0
+            orient = "N"
+        elif side == 1:
+            x_um, y_um = dimensions["die_width_um"], step_y * (index + 1)
+            orient = "W"
+        elif side == 2:
+            x_um, y_um = step_x * (index + 1), dimensions["die_height_um"]
+            orient = "S"
+        else:
+            x_um, y_um = 0.0, step_y * (index + 1)
+            orient = "E"
+        lines.extend(
+            [
+                f"  - {safe_name} + NET {safe_name}",
+                f"    + DIRECTION {direction}",
+                f"    + LAYER {layer} ( -100 -100 ) ( 100 100 )",
+                f"    + PLACED ( {dbu(x_um)} {dbu(y_um)} ) {orient} ;",
+            ]
+        )
+    lines.append("END PINS")
+    return lines
+
+
+def def_component_lines(cells: dict, dimensions: dict, *, placed: bool) -> list[str]:
+    cell_items = sorted(cells.items())
+    lines = [f"COMPONENTS {len(cell_items)} ;"]
+    columns = max(1, math.ceil(math.sqrt(max(1, len(cell_items)))))
+    for index, (_name, cell) in enumerate(cell_items):
+        raw_cell_type = str(cell.get("type", "UNKNOWN"))
+        safe_cell_type = sanitize_def_name(raw_cell_type, "UNKNOWN")
+        safe_name = sanitize_def_name(_name, f"U{index}")
+        lines.append(f"  - {safe_name} {safe_cell_type}")
+        if placed:
+            row = index // columns
+            column = index % columns
+            x_um = dimensions["margin_um"] + ((column + 1) * dimensions["core_width_um"] / (columns + 1))
+            y_um = dimensions["margin_um"] + ((row + 1) * dimensions["core_height_um"] / (columns + 1))
+            lines.append(f"    + PLACED ( {dbu(x_um)} {dbu(y_um)} ) N ;")
+        else:
+            lines.append("    + UNPLACED ;")
+    lines.append("END COMPONENTS")
+    return lines
+
+
+def write_def(context: dict, path_text: str, ports: dict, cells: dict, dimensions: dict, *, placed: bool, routed: bool) -> None:
+    lines = def_header(context, dimensions)
+    lines.extend(def_pin_lines(context, ports, dimensions))
+    lines.extend(def_component_lines(cells, dimensions, placed=placed))
+    timing = context["pd_constraints"]["timing"]
+    if routed:
+        lines.extend(
+            [
+                "SPECIALNETS 1 ;",
+                f"  - {timing['clock']} + USE CLOCK ;",
+                "END SPECIALNETS",
+            ]
+        )
+    lines.extend(["NETS 0 ;", "END NETS", f"END DESIGN"])
+    path = Path(path_text)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def prepare_pd_floorplan(context: dict) -> None:
+    validate_pd_intent(context)
+    design = load_synth_design(context)
+    dimensions = pd_dimensions(context, len(design["cells"]))
+    write_def(
+        context,
+        context["pd_floorplan_def"],
+        design["ports"],
+        design["cells"],
+        dimensions,
+        placed=False,
+        routed=False,
+    )
+
+    pin_layers = context["pd_constraints"]["io_boundary"]["pin_layers"]
+    io_lines = [
+        f"# Generated IO placement intent for {context['ip']}",
+        f"# policy: {context['pd_constraints']['io_boundary']['pin_order_policy']}",
+    ]
+    for index, name in enumerate(sorted(design["ports"])):
+        io_lines.append(f"set_io_pin_constraint -pin_names {{{name}}} -layers {{{pin_layers[index % len(pin_layers)]}}}")
+    io_path = Path(context["pd_io_placement_tcl"])
+    io_path.parent.mkdir(parents=True, exist_ok=True)
+    io_path.write_text("\n".join(io_lines) + "\n", encoding="utf-8")
+
+    timing = context["pd_constraints"]["timing"]
+    sdc_lines = [
+        f"create_clock -name {timing['clock']} -period {timing['period_ns']} [get_ports {timing['clock']}]",
+        f"set_input_delay 0.0 -clock {timing['clock']} [remove_from_collection [all_inputs] [get_ports {timing['clock']}]]",
+        f"set_output_delay 0.0 -clock {timing['clock']} [all_outputs]",
+    ]
+    sdc_path = Path(context["pd_timing_sdc"])
+    sdc_path.parent.mkdir(parents=True, exist_ok=True)
+    sdc_path.write_text("\n".join(sdc_lines) + "\n", encoding="utf-8")
+
+
+def prepare_pd_placement(context: dict) -> None:
+    design = load_synth_design(context)
+    dimensions = pd_dimensions(context, len(design["cells"]))
+    write_def(
+        context,
+        context["pd_placed_def"],
+        design["ports"],
+        design["cells"],
+        dimensions,
+        placed=True,
+        routed=False,
+    )
+
+
+def prepare_pd_cts(context: dict) -> None:
+    design = load_synth_design(context)
+    timing = context["pd_constraints"]["timing"]
+    report_path = Path(context["pd_cts_report"])
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        "\n".join(
+            [
+                f"CTS review report for {context['ip']}",
+                f"clock: {timing['clock']}",
+                f"period_ns: {timing['period_ns']}",
+                f"cells_considered: {len(design['cells'])}",
+                "status: internal DEF-stage scaffold; external CTS is deferred until OpenROAD integration",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def prepare_pd_route(context: dict) -> None:
+    design = load_synth_design(context)
+    dimensions = pd_dimensions(context, len(design["cells"]))
+    write_def(
+        context,
+        context["pd_routed_def"],
+        design["ports"],
+        design["cells"],
+        dimensions,
+        placed=True,
+        routed=True,
+    )
+    log_path = Path(context["pd_log"])
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(
+        "\n".join(
+            [
+                "physical-design DEF-stage scaffold completed",
+                f"profile: {context['pd_profile']}",
+                f"backend: {context['pd_backend']['kind']}",
+                f"floorplan_def: {relativize_path(context['pd_floorplan_def'])}",
+                f"placed_def: {relativize_path(context['pd_placed_def'])}",
+                f"routed_def: {relativize_path(context['pd_routed_def'])}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def prepare_pd_reports(context: dict) -> None:
+    design = load_synth_design(context)
+    dimensions = pd_dimensions(context, len(design["cells"]))
+    timing = context["pd_constraints"]["timing"]
+
+    timing_path = Path(context["pd_timing_report"])
+    timing_path.parent.mkdir(parents=True, exist_ok=True)
+    timing_path.write_text(
+        "\n".join(
+            [
+                f"Timing review report for {context['ip']}",
+                f"clock: {timing['clock']}",
+                f"period_ns: {timing['period_ns']}",
+                "worst_negative_slack_ns: not_available",
+                "total_negative_slack_ns: not_available",
+                "status: timing constraints emitted; external STA is deferred until OpenROAD/OpenSTA integration",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    utilization_path = Path(context["pd_utilization_report"])
+    utilization_path.parent.mkdir(parents=True, exist_ok=True)
+    utilization_path.write_text(
+        "\n".join(
+            [
+                f"Utilization review report for {context['ip']}",
+                f"cell_count: {len(design['cells'])}",
+                f"estimated_cell_area_um2: {dimensions['cell_area_um2']:.2f}",
+                f"estimated_core_area_um2: {dimensions['core_area_um2']:.2f}",
+                f"target_utilization: {dimensions['target_utilization']:.3f}",
+                f"core_width_um: {dimensions['core_width_um']:.2f}",
+                f"core_height_um: {dimensions['core_height_um']:.2f}",
+                f"die_width_um: {dimensions['die_width_um']:.2f}",
+                f"die_height_um: {dimensions['die_height_um']:.2f}",
+                "status: estimated from synth JSON; external placement utilization is deferred until OpenROAD integration",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def prepare_pd_summary(context: dict) -> None:
     validate_pd_intent(context)
+    for artifact_name in [
+        "synth_netlist",
+        "synth_summary_yaml",
+        "pd_floorplan_def",
+        "pd_io_placement_tcl",
+        "pd_timing_sdc",
+        "pd_placed_def",
+        "pd_cts_report",
+        "pd_routed_def",
+        "pd_timing_report",
+        "pd_utilization_report",
+        "pd_log",
+    ]:
+        artifact_path = Path(context[artifact_name])
+        if not artifact_path.is_file():
+            raise BuildError(f"missing PD artifact {artifact_name}: {artifact_path}")
     tool_status = []
     for tool in context["pd_required_tools"]:
         exe = format_text(tool["exe"], context)
@@ -1481,9 +1799,11 @@ def prepare_pd_summary(context: dict) -> None:
             "module": context["rtl_module"],
             "profile": context["pd_profile"],
             "profile_description": context["pd_profile_description"],
+            "pd_exec_backend": bool(context.get("pd_exec_backend")),
             "status": {
-                "completed": False,
-                "reason": "physical-design backend skeleton is declared but not yet executed",
+                "completed": True,
+                "stage": "def",
+                "reason": "DEF-stage physical-design review artifacts generated by the internal scaffold; external P&R and signoff artifacts are deferred",
             },
             "backend": context["pd_backend"],
             "bootstrap": context["pd_bootstrap"],
@@ -1491,6 +1811,11 @@ def prepare_pd_summary(context: dict) -> None:
             "required_inputs": context["pd_required_inputs"],
             "planned_outputs": context["pd_planned_outputs"],
             "tools": tool_status,
+            "limitations": [
+                "internal scaffold uses deterministic estimated placement, not an external detailed placer",
+                "route-stage DEF records review intent, not signoff routing from OpenROAD",
+                "timing and utilization reports are scaffold estimates until external STA/P&R integration lands",
+            ],
             "artifacts": {
                 "synth_netlist": relativize_path(context["synth_netlist"]),
                 "synth_summary": relativize_path(context["synth_summary_yaml"]),
@@ -1500,10 +1825,12 @@ def prepare_pd_summary(context: dict) -> None:
                 "io_placement_tcl": relativize_path(context["pd_io_placement_tcl"]),
                 "timing_sdc": relativize_path(context["pd_timing_sdc"]),
                 "placed_def": relativize_path(context["pd_placed_def"]),
+                "cts_report": relativize_path(context["pd_cts_report"]),
                 "routed_def": relativize_path(context["pd_routed_def"]),
                 "final_gds": relativize_path(context["pd_final_gds"]),
                 "final_spef": relativize_path(context["pd_final_spef"]),
                 "timing_report": relativize_path(context["pd_timing_report"]),
+                "utilization_report": relativize_path(context["pd_utilization_report"]),
                 "drc_report": relativize_path(context["pd_drc_report"]),
                 "lvs_report": relativize_path(context["pd_lvs_report"]),
                 "layout_svg": relativize_path(context["pd_layout_svg"]),
@@ -1516,32 +1843,51 @@ def prepare_pd_summary(context: dict) -> None:
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
 
-def check_pd_backend(context: dict) -> None:
-    missing_tools = []
-    for tool in context["pd_required_tools"]:
-        exe = Path(format_text(tool["exe"], context)).expanduser()
-        if not exe.is_file():
-            missing_tools.append(f"{tool['name']} ({exe})")
-    if missing_tools:
-        Path(context["pd_log"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(context["pd_log"]).write_text(
-            "physical-design backend is not available\n"
-            f"profile: {context['pd_profile']}\n"
-            f"backend: {context['pd_backend']['kind']}\n"
-            "missing tools:\n"
-            + "\n".join(f"- {tool}" for tool in missing_tools)
-            + "\n",
-            encoding="utf-8",
-        )
+def gate_pd_exec_backend(context: dict) -> None:
+    """Opt-in gate: ensure OpenROAD exists when -pd-exec is passed (local / heavy; not for CI)."""
+    if not context.get("pd_exec_backend"):
+        return
+    env_root = load_yaml(ENV_CONFIG)
+    require_keys(env_root, ["environment"], str(ENV_CONFIG))
+    env = env_root["environment"]
+    if not isinstance(env, dict):
+        raise BuildError(f"'environment' must be a mapping in {ENV_CONFIG}")
+    bootstrap = env.get("bootstrap", {})
+    if not isinstance(bootstrap, dict):
+        raise BuildError(f"'environment.bootstrap' must be a mapping in {ENV_CONFIG}")
+    manual_tools = bootstrap.get("manual_tools", {})
+    if not isinstance(manual_tools, dict):
+        manual_tools = {}
+    openroad_cfg = manual_tools.get("openroad", {})
+    if not isinstance(openroad_cfg, dict):
+        openroad_cfg = {}
+    preferred = openroad_cfg.get("preferred_path", "/usr/bin/openroad")
+    if not isinstance(preferred, str) or not preferred.strip():
+        preferred = "/usr/bin/openroad"
+    env_context = dict(env)
+    env_context["repo_root"] = str(REPO_ROOT)
+    env_context["host_home"] = os.environ.get("HOME", str(Path.home()))
+    env_context["home_dir"] = resolve_template_text(str(env.get("home_dir", "{host_home}")), env_context)
+    exe_path = Path(resolve_template_text(preferred, env_context)).expanduser()
+    resolved: str | None = None
+    if exe_path.is_file():
+        resolved = str(exe_path)
+    else:
+        which = shutil.which("openroad")
+        if which:
+            resolved = which
+    if not resolved:
         raise BuildError(
-            "pd backend tool missing for profile "
-            f"'{context['pd_profile']}': {', '.join(missing_tools)}; "
-            f"see {relativize_path(context['pd_summary_yaml'])}"
+            "'-pd-exec' requires an OpenROAD binary (see cfg/env.yaml manual_tools.openroad); "
+            "install OpenROAD Flow Scripts and ensure `openroad` is on PATH or at preferred_path"
         )
-    raise BuildError(
-        "pd backend is declared but real floorplan/place-route execution is intentionally deferred "
-        "to the next physical-design issue"
+    log_path = Path(context["pd_log"])
+    note = (
+        f"pd_exec: openroad found at {resolved}; "
+        "full ORFS place-and-route invocation from this builder is not wired yet\n"
     )
+    prev = log_path.read_text(encoding="utf-8") if log_path.is_file() else ""
+    log_path.write_text(prev + note, encoding="utf-8")
 
 
 def prepare_fv_summary(context: dict) -> None:
@@ -1639,8 +1985,23 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "prepare_pd_summary":
         prepare_pd_summary(context)
         return
-    if isinstance(command, dict) and command.get("action") == "check_pd_backend":
-        check_pd_backend(context)
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_floorplan":
+        prepare_pd_floorplan(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_placement":
+        prepare_pd_placement(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_cts":
+        prepare_pd_cts(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_route":
+        prepare_pd_route(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_reports":
+        prepare_pd_reports(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "gate_pd_exec_backend":
+        gate_pd_exec_backend(context)
         return
     if isinstance(command, dict) and command.get("action") == "run_regression":
         run_regression(steps_cfg["regress"], context, context.get("selected_tests", []), steps_cfg)
@@ -2261,6 +2622,8 @@ def main() -> int:
     resolved_command_text = ""
     try:
         args = parse_args()
+        if args.pd_exec and not args.pd:
+            raise BuildError("'-pd-exec' requires '-pd'")
         if not args.ip and not args.debug:
             selected_ip = prompt_for_named_entry("ip", get_available_ips())
             if selected_ip is None:
@@ -2296,6 +2659,7 @@ def main() -> int:
                 raise BuildError(f"target '{target_name}' is not defined")
 
         context = get_ip_data(args.ip)
+        context["pd_exec_backend"] = bool(args.pd_exec)
         for target_name in requested_targets:
             target_cfg = targets_cfg[target_name]
             selector_cfg = target_cfg.get("selector")
@@ -2364,6 +2728,7 @@ def main() -> int:
             for target_name in requested_targets
         }
         announced_steps: set[str] = set()
+        announce_step_tree("prepare", steps_cfg, context, announced_steps)
         for target_name in requested_targets:
             target_cfg = targets_cfg[target_name]
             target_context = target_contexts[target_name]

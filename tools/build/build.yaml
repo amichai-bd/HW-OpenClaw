@@ -164,8 +164,13 @@ steps:
       - "{pd_out_dir}"
     commands:
       - cmd: mkdir -p {pd_out_dir}
+      - action: prepare_pd_floorplan
+      - action: prepare_pd_placement
+      - action: prepare_pd_cts
+      - action: prepare_pd_route
+      - action: prepare_pd_reports
       - action: prepare_pd_summary
-      - action: check_pd_backend
+      - action: gate_pd_exec_backend
 
   compile:
     display_name: "compile {ip}"

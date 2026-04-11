@@ -7,4 +7,4 @@ Current scope:
 - declare the physical-design structure
 - declare floorplan, IO boundary, and timing intent in `cfg/ip.yaml`
 - depend on synthesis outputs as PD inputs
-- fail clearly until the OpenROAD backend is installed and wired
+- emit floorplan, IO, timing, placed DEF, CTS, route-stage DEF, timing, and utilization review artifacts

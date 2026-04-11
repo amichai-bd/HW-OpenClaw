@@ -21,6 +21,7 @@ If you are new to the repository, read these first:
 - [github-flow](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow)
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
+- [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
 
 For a fresh clone:
 

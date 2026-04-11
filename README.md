@@ -67,6 +67,7 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 │           ├── lib/
 │           └── scripts/
 ├── tools/
+│   ├── README.md
 │   └── build/
 │       ├── build.py
 │       └── build.yaml
@@ -81,6 +82,7 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 - `src/` changes must be reviewed against the referenced wiki and should update the wiki when the intended structure, behavior, or method changes.
 - wiki changes must also be reviewed against the affected `src/` paths so spec and implementation do not drift.
 - YAML files are the source of truth for tool flow, IP metadata, output layout, and environment data.
+- The **software stack** is defined in the wiki ([software-stack](wiki/flows-methods-phylosophy/software-stack.md)): **Tier 1** is `./setup` (RTL, DV, FV, lint, Yosys synth) for everyday work and CI; **Tier 2** is the **physical-design / P&R backend** (OpenROAD Flow Scripts class) declared in `cfg/pd.yaml`, so place-and-route is an explicit layer after synthesis rather than “just more Yosys.”
 - `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
 - `cfg/fv.yaml` owns shared formal profiles, solver selection, and reusable formal script selection.
@@ -116,6 +118,7 @@ Then invoke the builder through the standard repo launcher:
 ./build -ip counter -fv
 ./build -ip fifo -synth
 ./build -ip fifo -pd
+./build -ip fifo -pd -pd-exec
 ./build -ip fifo -test sanity
 ./build -ip fifo -regress level_0
 ./build -ip fifo -lint -fv -synth -regress level_2
@@ -141,7 +144,7 @@ For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint 
 
 `./setup` installs the required open-source toolchain from the YAML-defined bootstrap contract in `cfg/env.yaml`, including Verilator, Yosys, SBY, GTKWave, and the formal solver dependencies. `./setup --check` verifies the installed toolchain without reinstalling it.
 
-The physical-design backend is declared but not installed by `./setup` yet. `./build -ip fifo -pd` runs the declared synthesis prerequisite, writes a PD summary, and then fails clearly if the selected OpenROAD backend executable is missing. Later physical-design issues will add backend installation and real floorplan/place-route execution.
+The physical-design backend is **declared** (OpenROAD-class P&R) but **not** installed by `./setup`; that split is intentional so the default bootstrap and CI gate stay on the RTL-through-synth toolchain. `./build -ip fifo -pd` runs the synthesis prerequisite and writes PD summary/review scaffold artifacts. **`./build -ip fifo -pd -pd-exec`** adds an **optional local** gate that an `openroad` binary exists (`cfg/env.yaml` preferred path or `PATH`); it does not run full ORFS from the builder yet. Wiring real place-and-route is tracked as physical-design work; see the [software stack](wiki/flows-methods-phylosophy/software-stack.md) page for rationale.
 
 Repository structure can be validated explicitly per IP:
 
@@ -160,7 +163,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - PR review enforcement also runs through [pr-agent](.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](.pr_agent.toml).
 - CodeRabbit is configured from the repo-root [.coderabbit.yaml](.coderabbit.yaml) and runs alongside PR-Agent on this public repository through the CodeRabbit GitHub App.
 - The current CI uses one `gate` job on `ubuntu-latest`.
-- That job uses the same repo bootstrap entrypoint as local development, then runs two explicit builder invocations: one for `fifo` and one for `counter`.
+- That job uses the same repo bootstrap entrypoint as local development, then runs two explicit builder invocations: one for `fifo` and one for `counter`. Neither invocation includes `-pd` or `-pd-exec`; **Tier 1** (see [software-stack](wiki/flows-methods-phylosophy/software-stack.md)) is the default merge gate until PD is added to CI deliberately.
 - The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
 - PR-Agent is part of the normal PR gate. It runs as a repository-managed GitHub Actions check and is configured by `.pr_agent.toml`.
 - CodeRabbit is also part of the normal PR gate. It runs as the CodeRabbit GitHub App, is configured by `.coderabbit.yaml`, and can block merge both through its required `CodeRabbit` check and through unresolved review conversations.
@@ -201,7 +204,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, structural schematic DOT/SVG/PNG artifacts, and a derived `synth_summary.yaml` artifact for automation.
 - The schematic SVG/PNG artifacts are synthesized structural connectivity views. They are not physical floorplans, placement views, routed layouts, or timing heatmaps.
 - Physical design uses the YAML-defined build flow in `tools/build/build.yaml` and the profile contract in `cfg/pd.yaml`.
-- The current physical-design flow is a skeleton. It declares OpenROAD Flow Scripts as the foundation backend, consumes synthesis outputs, records planned DEF/GDS/SPEF/report/image artifacts, and fails clearly until the backend is installed and wired.
+- The current physical-design flow is a DEF-stage scaffold toward **real P&R**: it declares **OpenROAD Flow Scripts** as the foundation backend (the **Tier 2** toolchain in [software-stack](wiki/flows-methods-phylosophy/software-stack.md)), consumes synthesis outputs, emits deterministic floorplan/IO/timing/placement/CTS/route/timing/utilization review artifacts, and records later GDS/SPEF/signoff/image outputs without pretending signoff exists before the backend and technology collateral are wired.
 
 ## Development workflow
 
