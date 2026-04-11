@@ -100,4 +100,4 @@ To compare with what the skill would publish from this `wiki/` tree, run `./bin/
 - [dv](dv/dv)
 - [fv](fv/fv)
 - [syn](syn/syn)
-- [flows methods phylosophy](flows-methods-phylosophy/flows-methods-phylosophy)
+- [flows methods philosophy](flows-methods-phylosophy/flows-methods-phylosophy)

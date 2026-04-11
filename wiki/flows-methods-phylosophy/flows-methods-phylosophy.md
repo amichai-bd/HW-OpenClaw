@@ -1,4 +1,4 @@
-# flows methods phylosophy
+# flows methods philosophy
 
 This directory captures the repository-wide development method beyond the direct `src/` mirror.
 
