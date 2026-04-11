@@ -269,6 +269,10 @@ def get_synth_profile(profile_name: str) -> dict:
     if not isinstance(constraints, dict):
         raise BuildError(f"'constraints' must be a mapping in profiles.{profile_name}")
     require_keys(constraints, ["format", "note"], f"profiles.{profile_name}.constraints")
+    if not isinstance(constraints["format"], str) or not constraints["format"]:
+        raise BuildError(f"'format' must be a non-empty string in profiles.{profile_name}.constraints")
+    if not isinstance(constraints["note"], str):
+        raise BuildError(f"'note' must be a string in profiles.{profile_name}.constraints")
     visualization = profile["visualization"]
     if not isinstance(visualization, dict):
         raise BuildError(f"'visualization' must be a mapping in profiles.{profile_name}")
@@ -279,6 +283,10 @@ def get_synth_profile(profile_name: str) -> dict:
     )
     if not isinstance(visualization["enabled"], bool):
         raise BuildError(f"'enabled' must be a boolean in profiles.{profile_name}.visualization")
+    if not isinstance(visualization["yosys_show_options"], str):
+        raise BuildError(f"'yosys_show_options' must be a string in profiles.{profile_name}.visualization")
+    if not isinstance(visualization["note"], str):
+        raise BuildError(f"'note' must be a string in profiles.{profile_name}.visualization")
     if not isinstance(profile["check_is_gating"], bool):
         raise BuildError(f"'check_is_gating' must be a boolean in profiles.{profile_name}")
     if visualization["renderer"] != "yosys-show-graphviz":
@@ -1568,10 +1576,12 @@ def run_qa_checks(context: dict) -> None:
             "fv_top",
             "fv_filelist",
             "synth_profile",
+            "synth_constraints",
             "qa_report",
         ],
         f"ip.{context['ip']}",
     )
+    validate_synth_constraints(context)
 
     required_dirs = [
         f"src/rtl/{context['ip']}/code",
@@ -1856,9 +1866,7 @@ def validate_fv_context(context: dict, fv_profile: dict | None) -> None:
         raise BuildError(f"missing fv solver executable: {solver_exe}")
 
 
-def validate_synth_context(context: dict) -> None:
-    if "synth_profile" not in context:
-        raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
+def validate_synth_constraints(context: dict) -> None:
     if "synth_constraints" not in context:
         raise BuildError(f"missing 'synth_constraints' in ip.{context['ip']}")
     if not isinstance(context["synth_constraints"], dict):
@@ -1897,6 +1905,12 @@ def validate_synth_context(context: dict) -> None:
     for key in ("input_delay_ns", "output_delay_ns"):
         if not isinstance(io_constraints[key], (int, float)) or io_constraints[key] < 0:
             raise BuildError(f"'{key}' must be a non-negative number in ip.{context['ip']}.synth_constraints.io")
+
+
+def validate_synth_context(context: dict) -> None:
+    if "synth_profile" not in context:
+        raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
+    validate_synth_constraints(context)
     context.update(get_synth_profile(context["synth_profile"]))
     if not Path(context["synth_script"]).is_file():
         raise BuildError(f"missing synth script: {context['synth_script']}")
