@@ -6,7 +6,7 @@ The repository treats synthesis as its own discipline rather than an extension o
 
 Current area:
 
-- [syn common](common/syn-common.md)
+- [syn common](common/syn-common)
 
 Use this area for:
 
