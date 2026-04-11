@@ -36,6 +36,21 @@ targets:
     review_files:
       - "{ip_root}"
 
+  pd:
+    root_steps:
+      - pd
+    tool_requirements:
+      - yosys
+      - name: dot
+        when: "{synth_visualization_enabled}"
+    context:
+      run_dir: "{pd_out_dir}"
+      log_file: "{pd_log}"
+    review_files:
+      - "{pd_log}"
+      - "{pd_summary_yaml}"
+      - "{ip_root}"
+
   compile:
     root_steps:
       - compile
@@ -138,6 +153,19 @@ steps:
         log: "{log_file}"
       - action: render_synth_schematic_png
       - action: prepare_synth_summary
+
+  pd:
+    display_name: "pd {ip}"
+    depends_on:
+      - synth
+    review_files:
+      - "{pd_log}"
+      - "{pd_summary_yaml}"
+      - "{pd_out_dir}"
+    commands:
+      - cmd: mkdir -p {pd_out_dir}
+      - action: prepare_pd_summary
+      - action: check_pd_backend
 
   compile:
     display_name: "compile {ip}"

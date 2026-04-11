@@ -8,6 +8,8 @@ The builder should stay declarative and YAML-driven.
 - IP-specific paths and selections should come from config YAML, not filesystem discovery
 - successful output should be human-readable and machine-friendly
 - build collateral should be structured under `workdir/<tag>/<ip>/...`
+- physical-design targets should use the same YAML graph instead of a separate
+  script-only flow
 
 The repository bootstrap path should also stay standard:
 
@@ -40,3 +42,13 @@ The repository should be able to validate its own structural contract.
 - QA should check config references, filelists, mirrored wiki pages, discipline layout, and a deterministic subset of the repository style contract
 - the enforced style subset should stay deterministic and low-ambiguity, for example plain `always`, inline `logic` initialization, and handwritten non-blocking assignments
 - larger IPs should enter the repository only after passing the same structural contract
+
+## Physical-design bootstrap
+
+`./build -ip <ip> -pd` is the physical-design entry point.
+
+At the skeleton stage, PD depends on synthesis, writes a structured
+`pd_summary.yaml`, and then fails clearly if the declared backend tool is missing.
+This keeps the flow honest: the repository has a PD contract, but it does not
+pretend a real floorplan/place-route/signoff backend exists before the backend is
+installed and wired.

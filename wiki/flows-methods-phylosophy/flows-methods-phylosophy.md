@@ -12,3 +12,4 @@ This directory captures the repository-wide development method beyond the direct
 - [formal-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)
 - [lint-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/lint-methodology)
 - [synthesis-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/synthesis-methodology)
+- [physical-design-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology)

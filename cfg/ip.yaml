@@ -30,6 +30,21 @@ output_layout:
   synth_schematic_dot: workdir/{tag}/{ip}/synth/{ip}_schematic.dot
   synth_schematic_svg: workdir/{tag}/{ip}/synth/{ip}_schematic.svg
   synth_schematic_png: workdir/{tag}/{ip}/synth/{ip}_schematic.png
+  pd_out_dir: workdir/{tag}/{ip}/pd/
+  pd_log: workdir/{tag}/{ip}/pd/pd.log
+  pd_summary_yaml: workdir/{tag}/{ip}/pd/{ip}_pd_summary.yaml
+  pd_floorplan_def: workdir/{tag}/{ip}/pd/floorplan/{ip}_floorplan.def
+  pd_io_placement_tcl: workdir/{tag}/{ip}/pd/floorplan/{ip}_io_placement.tcl
+  pd_timing_sdc: workdir/{tag}/{ip}/pd/timing/{ip}.sdc
+  pd_placed_def: workdir/{tag}/{ip}/pd/place/{ip}_placed.def
+  pd_routed_def: workdir/{tag}/{ip}/pd/route/{ip}_routed.def
+  pd_final_gds: workdir/{tag}/{ip}/pd/signoff/{ip}.gds
+  pd_final_spef: workdir/{tag}/{ip}/pd/signoff/{ip}.spef
+  pd_timing_report: workdir/{tag}/{ip}/pd/reports/{ip}_timing.rpt
+  pd_drc_report: workdir/{tag}/{ip}/pd/reports/{ip}_drc.rpt
+  pd_lvs_report: workdir/{tag}/{ip}/pd/reports/{ip}_lvs.rpt
+  pd_layout_svg: workdir/{tag}/{ip}/pd/images/{ip}_layout.svg
+  pd_layout_png: workdir/{tag}/{ip}/pd/images/{ip}_layout.png
   compile_dir: workdir/{tag}/{ip}/compile/
   compile_log: workdir/{tag}/{ip}/compile/compile.log
   binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
@@ -60,6 +75,20 @@ ip:
       io:
         input_delay_ns: 0.0
         output_delay_ns: 0.0
+    pd_profile: openroad_foundation
+    pd_constraints:
+      floorplan:
+        utilization: 0.35
+        aspect_ratio: 1.0
+        core_margin_um: 10.0
+      io_boundary:
+        pin_order_policy: grouped_by_interface
+        pin_layers:
+          - met2
+          - met3
+      timing:
+        clock: clk
+        period_ns: 10.0
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
     rtl_top: src/rtl/fifo/code/fifo.sv
@@ -88,6 +117,20 @@ ip:
       io:
         input_delay_ns: 0.0
         output_delay_ns: 0.0
+    pd_profile: openroad_foundation
+    pd_constraints:
+      floorplan:
+        utilization: 0.30
+        aspect_ratio: 1.0
+        core_margin_um: 10.0
+      io_boundary:
+        pin_order_policy: grouped_by_interface
+        pin_layers:
+          - met2
+          - met3
+      timing:
+        clock: clk
+        period_ns: 10.0
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv

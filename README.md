@@ -23,12 +23,14 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 │   ├── fv/
 │   ├── rtl/
 │   ├── syn/
+│   ├── pd/
 │   └── flows-methods-phylosophy/
 ├── cfg/
 │   ├── env.sh
 │   ├── env.yaml
 │   ├── fv.yaml
 │   ├── ip.yaml
+│   ├── pd.yaml
 │   └── synth.yaml
 ├── src/
 │   ├── dv/
@@ -49,13 +51,17 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 │   │       ├── code/
 │   │       ├── proofs/
 │   │       └── properties/
+│   ├── pd/
+│   │   ├── common/
+│   │   │   └── scripts/
+│   │   └── <ip>/
 │   ├── rtl/
-│       ├── common/
-│       │   └── include/
-│       └── <ip>/
-│           ├── code/
-│           ├── lint/
-│           └── filelist_rtl_<ip>.f
+│   │   ├── common/
+│   │   │   └── include/
+│   │   └── <ip>/
+│   │       ├── code/
+│   │       ├── lint/
+│   │       └── filelist_rtl_<ip>.f
 │   └── syn/
 │       └── common/
 │           ├── lib/
@@ -79,6 +85,7 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
 - `cfg/fv.yaml` owns shared formal profiles, solver selection, and reusable formal script selection.
 - `cfg/synth.yaml` owns shared synthesis profiles, reusable script selection, and synthesis-technology metadata.
+- Shared physical-design profiles, backend selection, required tools, required inputs, and planned outputs live in `cfg/pd.yaml`.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
 - Formal-verification collateral should live under `src/fv/`, separate from both `rtl/`, `dv/`, and `syn/`.
 - Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
@@ -87,6 +94,9 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 - Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
 - Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
 - IPs select synthesis behavior in `cfg/ip.yaml` via a synth profile, while the shared profile definitions live in `cfg/synth.yaml`.
+- Physical-design collateral should live under `src/pd/`, separate from synthesis source collateral.
+- Shared physical-design collateral should live under `src/pd/common/`.
+- IPs select physical-design behavior in `cfg/ip.yaml` via a PD profile, while the shared profile definitions live in `cfg/pd.yaml`.
 - Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
 - DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
 
@@ -105,6 +115,7 @@ Then invoke the builder through the standard repo launcher:
 ./build -ip fifo -lint
 ./build -ip counter -fv
 ./build -ip fifo -synth
+./build -ip fifo -pd
 ./build -ip fifo -test sanity
 ./build -ip fifo -regress level_0
 ./build -ip fifo -lint -fv -synth -regress level_2
@@ -129,6 +140,8 @@ For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint 
 ```
 
 `./setup` installs the required open-source toolchain from the YAML-defined bootstrap contract in `cfg/env.yaml`, including Verilator, Yosys, SBY, GTKWave, and the formal solver dependencies. `./setup --check` verifies the installed toolchain without reinstalling it.
+
+The physical-design backend is declared but not installed by `./setup` yet. `./build -ip fifo -pd` runs the declared synthesis prerequisite, writes a PD summary, and then fails clearly if the selected OpenROAD backend executable is missing. Later physical-design issues will add backend installation and real floorplan/place-route execution.
 
 Repository structure can be validated explicitly per IP:
 
@@ -187,6 +200,8 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
 - Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, structural schematic DOT/SVG/PNG artifacts, and a derived `synth_summary.yaml` artifact for automation.
 - The schematic SVG/PNG artifacts are synthesized structural connectivity views. They are not physical floorplans, placement views, routed layouts, or timing heatmaps.
+- Physical design uses the YAML-defined build flow in `tools/build/build.yaml` and the profile contract in `cfg/pd.yaml`.
+- The current physical-design flow is a skeleton. It declares OpenROAD Flow Scripts as the foundation backend, consumes synthesis outputs, records planned DEF/GDS/SPEF/report/image artifacts, and fails clearly until the backend is installed and wired.
 
 ## Development workflow
 

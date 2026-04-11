@@ -29,6 +29,8 @@ The major source disciplines are intentionally separated:
   formal verification
 - `src/syn/`
   synthesis
+- `src/pd/`
+  physical design
 
 This separation matters because each discipline has:
 
@@ -45,6 +47,7 @@ The wiki mirrors the `src/` structure at the top level:
 - `wiki/dv/` mirrors `src/dv/`
 - `wiki/fv/` mirrors `src/fv/`
 - `wiki/syn/` mirrors `src/syn/`
+- `wiki/pd/` mirrors `src/pd/`
 
 This does not mean every wiki page must be equally detailed.
 It means every source area has an obvious specification home.

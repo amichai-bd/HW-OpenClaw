@@ -33,6 +33,7 @@ If you are changing code in a discipline, jump directly to:
 - [dv overview](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
 - [fv overview](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
 - [syn overview](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
+- [pd overview](/amichai-bd/HW-OpenClaw/wiki/pd/pd)
 
 If you are looking for rules rather than structure, use:
 
@@ -40,6 +41,7 @@ If you are looking for rules rather than structure, use:
 - [dv methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology)
 - [formal methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)
 - [synthesis methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/synthesis-methodology)
+- [physical-design methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology)
 
 ## How to use this wiki
 
@@ -100,4 +102,5 @@ To compare with what the skill would publish from this `wiki/` tree, run `./bin/
 - [dv](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
 - [fv](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
 - [syn](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
+- [pd](/amichai-bd/HW-OpenClaw/wiki/pd/pd)
 - [flows methods philosophy](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/flows-methods-phylosophy)
