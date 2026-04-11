@@ -427,7 +427,7 @@ def get_env_data(required_tool_names: set[str]) -> dict:
     if "gtkwave" in tools:
         env_data["gtkwave_exe"] = resolve_template_text(str(tools["gtkwave"]["exe"]), env_context)
         env_data["gtkwave_version"] = resolve_template_text(str(tools["gtkwave"]["version"]), env_context)
-    if "dot" in tools:
+    if "dot" in required_tool_names:
         env_data["dot_exe"] = resolve_template_text(str(tools["dot"]["exe"]), env_context)
         env_data["dot_version"] = resolve_template_text(str(tools["dot"]["version"]), env_context)
     if "yosys" in tools:
@@ -768,7 +768,12 @@ def collect_required_tool_names(
                 raise BuildError(f"'when' must be a string for target '{target_name}' tool requirement")
             if not render_condition(when_text, context):
                 continue
-            required_tool_names.add(format_text(str(tool_requirement["name"]), context))
+            if not isinstance(tool_requirement["name"], str):
+                raise BuildError(
+                    f"tool requirement name must be a string for target '{target_name}': "
+                    f"{tool_requirement['name']}"
+                )
+            required_tool_names.add(format_text(tool_requirement["name"], context))
     return required_tool_names
 
 
@@ -1245,6 +1250,8 @@ def prepare_synth_summary(context: dict) -> None:
                 "check_is_gating": context["synth_check_is_gating"],
                 "check_warning_count": check_data["warning_count"],
                 "check_problem_count": check_data["problem_count"],
+                "check_gate_passed": not context["synth_check_is_gating"]
+                or (check_data["warning_count"] == 0 and check_data["problem_count"] == 0),
             },
             "tool": {
                 "yosys_exe": context["yosys_exe"],
@@ -1290,6 +1297,14 @@ def prepare_synth_summary(context: dict) -> None:
     summary_path = Path(context["synth_summary_yaml"])
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+    if context["synth_check_is_gating"] and (
+        check_data["warning_count"] > 0 or check_data["problem_count"] > 0
+    ):
+        raise BuildError(
+            "synth check gate failed: "
+            f"{check_data['warning_count']} warning(s), {check_data['problem_count']} problem(s)"
+        )
 
 
 def prepare_fv_summary(context: dict) -> None:
