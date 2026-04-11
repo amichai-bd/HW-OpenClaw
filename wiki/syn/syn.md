@@ -6,7 +6,7 @@ The repository treats synthesis as its own discipline rather than an extension o
 
 Current area:
 
-- [syn common](common/syn-common)
+- [syn common](/amichai-bd/HW-OpenClaw/wiki/syn/common/syn-common)
 
 Use this area for:
 

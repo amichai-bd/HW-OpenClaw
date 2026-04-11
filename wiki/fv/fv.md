@@ -12,7 +12,7 @@ Current areas:
 
 Start here:
 
-- [fv common](common/fv-common)
-- [fv fifo](fifo/fv-fifo)
-- [fv counter](counter/fv-counter)
-- [formal methodology](../flows-methods-phylosophy/formal-methodology)
+- [fv common](/amichai-bd/HW-OpenClaw/wiki/fv/common/fv-common)
+- [fv fifo](/amichai-bd/HW-OpenClaw/wiki/fv/fifo/fv-fifo)
+- [fv counter](/amichai-bd/HW-OpenClaw/wiki/fv/counter/fv-counter)
+- [formal methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)

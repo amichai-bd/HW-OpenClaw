@@ -17,10 +17,10 @@ The wiki exists so that repository changes start from a written specification in
 
 If you are new to the repository, read these first:
 
-- [spec-driven-development](flows-methods-phylosophy/spec-driven-development)
-- [github-flow](flows-methods-phylosophy/github-flow)
-- [repo-structure](flows-methods-phylosophy/repo-structure)
-- [builder-methodology](flows-methods-phylosophy/builder-methodology)
+- [spec-driven-development](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/spec-driven-development)
+- [github-flow](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow)
+- [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
+- [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
 
 For a fresh clone:
 
@@ -29,17 +29,17 @@ For a fresh clone:
 
 If you are changing code in a discipline, jump directly to:
 
-- [rtl overview](rtl/rtl)
-- [dv overview](dv/dv)
-- [fv overview](fv/fv)
-- [syn overview](syn/syn)
+- [rtl overview](/amichai-bd/HW-OpenClaw/wiki/rtl/rtl)
+- [dv overview](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
+- [fv overview](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
+- [syn overview](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
 
 If you are looking for rules rather than structure, use:
 
-- [rtl coding style](flows-methods-phylosophy/rtl-coding-style)
-- [dv methodology](flows-methods-phylosophy/dv-methodology)
-- [formal methodology](flows-methods-phylosophy/formal-methodology)
-- [synthesis methodology](flows-methods-phylosophy/synthesis-methodology)
+- [rtl coding style](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style)
+- [dv methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology)
+- [formal methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)
+- [synthesis methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/synthesis-methodology)
 
 ## How to use this wiki
 
@@ -96,8 +96,8 @@ To compare with what the skill would publish from this `wiki/` tree, run `./bin/
 
 ## Main areas
 
-- [rtl](rtl/rtl)
-- [dv](dv/dv)
-- [fv](fv/fv)
-- [syn](syn/syn)
-- [flows methods philosophy](flows-methods-phylosophy/flows-methods-phylosophy)
+- [rtl](/amichai-bd/HW-OpenClaw/wiki/rtl/rtl)
+- [dv](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
+- [fv](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
+- [syn](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
+- [flows methods philosophy](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/flows-methods-phylosophy)
