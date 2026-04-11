@@ -69,6 +69,10 @@ def lookup(mapping: dict, dotted_key: str):
     return value
 
 
+def is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def resolve_template_text(text: str, mapping: dict) -> str:
     def replace(match):
         key = match.group(1)
@@ -966,6 +970,7 @@ def render_synth_schematic_png(context: dict) -> None:
         cwd=REPO_ROOT,
         text=True,
         capture_output=True,
+        check=False,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "dot failed"
@@ -1146,6 +1151,7 @@ def render_value(template: str, context: dict) -> str:
 def render_paths(templates: list[str], context: dict) -> list[str]:
     paths: list[str] = []
     for template in templates:
+        path_template = template
         if isinstance(template, dict):
             require_keys(template, ["path"], "review_files entry")
             when_text = template.get("when", "true")
@@ -1153,10 +1159,10 @@ def render_paths(templates: list[str], context: dict) -> list[str]:
                 raise BuildError("'when' must be a string in review_files entry")
             if not render_condition(when_text, context):
                 continue
-            template = template["path"]
-        if not isinstance(template, str):
+            path_template = template["path"]
+        if not isinstance(path_template, str):
             raise BuildError("review_files entries must be strings or mappings")
-        rendered = render_value(template, context)
+        rendered = render_value(path_template, context)
         if rendered:
             paths.append(rendered)
     return paths
@@ -1894,7 +1900,7 @@ def validate_synth_constraints(context: dict) -> None:
     )
     if not isinstance(clock_constraints["name"], str) or not clock_constraints["name"]:
         raise BuildError(f"'name' must be a non-empty string in ip.{context['ip']}.synth_constraints.clock")
-    if not isinstance(clock_constraints["period_ns"], (int, float)) or clock_constraints["period_ns"] <= 0:
+    if not is_number(clock_constraints["period_ns"]) or clock_constraints["period_ns"] <= 0:
         raise BuildError(
             f"'period_ns' must be a positive number in ip.{context['ip']}.synth_constraints.clock"
         )
@@ -1903,7 +1909,7 @@ def validate_synth_constraints(context: dict) -> None:
     if reset_constraints["active"] not in {"low", "high"}:
         raise BuildError(f"'active' must be 'low' or 'high' in ip.{context['ip']}.synth_constraints.reset")
     for key in ("input_delay_ns", "output_delay_ns"):
-        if not isinstance(io_constraints[key], (int, float)) or io_constraints[key] < 0:
+        if not is_number(io_constraints[key]) or io_constraints[key] < 0:
             raise BuildError(f"'{key}' must be a non-negative number in ip.{context['ip']}.synth_constraints.io")
 
 
