@@ -9,7 +9,6 @@ import json
 import math
 import os
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -1468,6 +1467,11 @@ def validate_pd_intent(context: dict) -> None:
         raise BuildError(f"'core_margin_um' must be non-negative in ip.{context['ip']}.pd_constraints.floorplan")
     if not isinstance(io_boundary["pin_order_policy"], str) or not io_boundary["pin_order_policy"].strip():
         raise BuildError(f"'pin_order_policy' must be a non-empty string in ip.{context['ip']}.pd_constraints.io_boundary")
+    if io_boundary["pin_order_policy"] not in {"grouped_by_interface", "sorted_by_name"}:
+        raise BuildError(
+            f"'pin_order_policy' must be one of grouped_by_interface or sorted_by_name "
+            f"in ip.{context['ip']}.pd_constraints.io_boundary"
+        )
     if not isinstance(io_boundary["pin_layers"], list) or not io_boundary["pin_layers"]:
         raise BuildError(f"'pin_layers' must be a non-empty list in ip.{context['ip']}.pd_constraints.io_boundary")
     for index, layer in enumerate(io_boundary["pin_layers"]):
@@ -1543,9 +1547,26 @@ def def_header(context: dict, dimensions: dict) -> list[str]:
     ]
 
 
+def ordered_pd_ports(context: dict, ports: dict) -> list[tuple[str, dict]]:
+    policy = context["pd_constraints"]["io_boundary"]["pin_order_policy"]
+    if policy == "sorted_by_name":
+        return sorted(ports.items())
+    if policy != "grouped_by_interface":
+        raise BuildError(f"unsupported pin_order_policy '{policy}'")
+
+    direction_order = {"input": 0, "inout": 1, "output": 2}
+    return sorted(
+        ports.items(),
+        key=lambda item: (
+            direction_order.get(str(item[1].get("direction", "inout")).lower(), 1),
+            item[0],
+        ),
+    )
+
+
 def def_pin_lines(context: dict, ports: dict, dimensions: dict) -> list[str]:
     pin_layers = context["pd_constraints"]["io_boundary"]["pin_layers"]
-    pin_items = sorted(ports.items())
+    pin_items = ordered_pd_ports(context, ports)
     lines = [f"PINS {len(pin_items)} ;"]
     for index, (name, port) in enumerate(pin_items):
         safe_name = sanitize_def_name(name, f"PIN{index}")
@@ -1639,7 +1660,7 @@ def prepare_pd_floorplan(context: dict) -> None:
         f"# Generated IO placement intent for {context['ip']}",
         f"# policy: {context['pd_constraints']['io_boundary']['pin_order_policy']}",
     ]
-    for index, name in enumerate(sorted(design["ports"])):
+    for index, (name, _port) in enumerate(ordered_pd_ports(context, design["ports"])):
         io_lines.append(f"set_io_pin_constraint -pin_names {{{name}}} -layers {{{pin_layers[index % len(pin_layers)]}}}")
     io_path = Path(context["pd_io_placement_tcl"])
     io_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1653,6 +1674,18 @@ def prepare_pd_floorplan(context: dict) -> None:
     ]
     sdc_path = Path(context["pd_timing_sdc"])
     sdc_path.parent.mkdir(parents=True, exist_ok=True)
+    clock_name = str(timing["clock"])
+    clock_port = design["ports"].get(clock_name)
+    if not isinstance(clock_port, dict):
+        raise BuildError(
+            f"clock port '{clock_name}' is not present in synth JSON netlist; "
+            f"cannot write {relativize_path(context['pd_timing_sdc'])}"
+        )
+    if str(clock_port.get("direction", "")).lower() != "input":
+        raise BuildError(
+            f"clock port '{clock_name}' must be an input port in synth JSON netlist; "
+            f"cannot write {relativize_path(context['pd_timing_sdc'])}"
+        )
     sdc_path.write_text("\n".join(sdc_lines) + "\n", encoding="utf-8")
 
 
@@ -1792,6 +1825,31 @@ def prepare_pd_summary(context: dict) -> None:
                 "available": Path(exe).expanduser().is_file(),
             }
         )
+    artifacts = {
+        "synth_netlist": relativize_path(context["synth_netlist"]),
+        "synth_summary": relativize_path(context["synth_summary_yaml"]),
+        "pd_summary": relativize_path(context["pd_summary_yaml"]),
+        "pd_log": relativize_path(context["pd_log"]),
+        "floorplan_def": relativize_path(context["pd_floorplan_def"]),
+        "io_placement_tcl": relativize_path(context["pd_io_placement_tcl"]),
+        "timing_sdc": relativize_path(context["pd_timing_sdc"]),
+        "placed_def": relativize_path(context["pd_placed_def"]),
+        "cts_report": relativize_path(context["pd_cts_report"]),
+        "routed_def": relativize_path(context["pd_routed_def"]),
+        "timing_report": relativize_path(context["pd_timing_report"]),
+        "utilization_report": relativize_path(context["pd_utilization_report"]),
+    }
+    for artifact_key, context_key in [
+        ("final_gds", "pd_final_gds"),
+        ("final_spef", "pd_final_spef"),
+        ("drc_report", "pd_drc_report"),
+        ("lvs_report", "pd_lvs_report"),
+        ("layout_svg", "pd_layout_svg"),
+        ("layout_png", "pd_layout_png"),
+    ]:
+        if Path(context[context_key]).is_file():
+            artifacts[artifact_key] = relativize_path(context[context_key])
+
     summary = {
         "pd": {
             "ip": context["ip"],
@@ -1816,26 +1874,7 @@ def prepare_pd_summary(context: dict) -> None:
                 "route-stage DEF records review intent, not signoff routing from OpenROAD",
                 "timing and utilization reports are scaffold estimates until external STA/P&R integration lands",
             ],
-            "artifacts": {
-                "synth_netlist": relativize_path(context["synth_netlist"]),
-                "synth_summary": relativize_path(context["synth_summary_yaml"]),
-                "pd_summary": relativize_path(context["pd_summary_yaml"]),
-                "pd_log": relativize_path(context["pd_log"]),
-                "floorplan_def": relativize_path(context["pd_floorplan_def"]),
-                "io_placement_tcl": relativize_path(context["pd_io_placement_tcl"]),
-                "timing_sdc": relativize_path(context["pd_timing_sdc"]),
-                "placed_def": relativize_path(context["pd_placed_def"]),
-                "cts_report": relativize_path(context["pd_cts_report"]),
-                "routed_def": relativize_path(context["pd_routed_def"]),
-                "final_gds": relativize_path(context["pd_final_gds"]),
-                "final_spef": relativize_path(context["pd_final_spef"]),
-                "timing_report": relativize_path(context["pd_timing_report"]),
-                "utilization_report": relativize_path(context["pd_utilization_report"]),
-                "drc_report": relativize_path(context["pd_drc_report"]),
-                "lvs_report": relativize_path(context["pd_lvs_report"]),
-                "layout_svg": relativize_path(context["pd_layout_svg"]),
-                "layout_png": relativize_path(context["pd_layout_png"]),
-            },
+            "artifacts": artifacts,
         }
     }
     summary_path = Path(context["pd_summary_yaml"])
@@ -1860,30 +1899,26 @@ def gate_pd_exec_backend(context: dict) -> None:
         manual_tools = {}
     openroad_cfg = manual_tools.get("openroad", {})
     if not isinstance(openroad_cfg, dict):
-        openroad_cfg = {}
-    preferred = openroad_cfg.get("preferred_path", "/usr/bin/openroad")
+        raise BuildError("missing mapping environment.bootstrap.manual_tools.openroad in cfg/env.yaml")
+    preferred = openroad_cfg.get("preferred_path")
     if not isinstance(preferred, str) or not preferred.strip():
-        preferred = "/usr/bin/openroad"
+        raise BuildError("missing non-empty environment.bootstrap.manual_tools.openroad.preferred_path in cfg/env.yaml")
+    if not isinstance(env.get("home_dir"), str) or not env["home_dir"].strip():
+        raise BuildError("missing non-empty environment.home_dir in cfg/env.yaml")
     env_context = dict(env)
     env_context["repo_root"] = str(REPO_ROOT)
     env_context["host_home"] = os.environ.get("HOME", str(Path.home()))
-    env_context["home_dir"] = resolve_template_text(str(env.get("home_dir", "{host_home}")), env_context)
+    env_context["home_dir"] = resolve_template_text(str(env["home_dir"]), env_context)
     exe_path = Path(resolve_template_text(preferred, env_context)).expanduser()
-    resolved: str | None = None
-    if exe_path.is_file():
-        resolved = str(exe_path)
-    else:
-        which = shutil.which("openroad")
-        if which:
-            resolved = which
-    if not resolved:
+    if not exe_path.is_file():
         raise BuildError(
-            "'-pd-exec' requires an OpenROAD binary (see cfg/env.yaml manual_tools.openroad); "
-            "install OpenROAD Flow Scripts and ensure `openroad` is on PATH or at preferred_path"
+            "'-pd-exec' requires an OpenROAD binary at "
+            f"environment.bootstrap.manual_tools.openroad.preferred_path={preferred} "
+            f"(resolved to {exe_path})"
         )
     log_path = Path(context["pd_log"])
     note = (
-        f"pd_exec: openroad found at {resolved}; "
+        f"pd_exec: openroad found at {exe_path}; "
         "full ORFS place-and-route invocation from this builder is not wired yet\n"
     )
     prev = log_path.read_text(encoding="utf-8") if log_path.is_file() else ""

@@ -169,8 +169,8 @@ steps:
       - action: prepare_pd_cts
       - action: prepare_pd_route
       - action: prepare_pd_reports
-      - action: prepare_pd_summary
       - action: gate_pd_exec_backend
+      - action: prepare_pd_summary
 
   compile:
     display_name: "compile {ip}"
