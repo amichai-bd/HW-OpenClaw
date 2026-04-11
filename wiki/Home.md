@@ -17,10 +17,10 @@ The wiki exists so that repository changes start from a written specification in
 
 If you are new to the repository, read these first:
 
-- [spec-driven-development](flows-methods-phylosophy/spec-driven-development.md)
-- [github-flow](flows-methods-phylosophy/github-flow.md)
-- [repo-structure](flows-methods-phylosophy/repo-structure.md)
-- [builder-methodology](flows-methods-phylosophy/builder-methodology.md)
+- [spec-driven-development](flows-methods-phylosophy/spec-driven-development)
+- [github-flow](flows-methods-phylosophy/github-flow)
+- [repo-structure](flows-methods-phylosophy/repo-structure)
+- [builder-methodology](flows-methods-phylosophy/builder-methodology)
 
 For a fresh clone:
 
@@ -29,17 +29,17 @@ For a fresh clone:
 
 If you are changing code in a discipline, jump directly to:
 
-- [rtl overview](rtl/rtl.md)
-- [dv overview](dv/dv.md)
-- [fv overview](fv/fv.md)
-- [syn overview](syn/syn.md)
+- [rtl overview](rtl/rtl)
+- [dv overview](dv/dv)
+- [fv overview](fv/fv)
+- [syn overview](syn/syn)
 
 If you are looking for rules rather than structure, use:
 
-- [rtl coding style](flows-methods-phylosophy/rtl-coding-style.md)
-- [dv methodology](flows-methods-phylosophy/dv-methodology.md)
-- [formal methodology](flows-methods-phylosophy/formal-methodology.md)
-- [synthesis methodology](flows-methods-phylosophy/synthesis-methodology.md)
+- [rtl coding style](flows-methods-phylosophy/rtl-coding-style)
+- [dv methodology](flows-methods-phylosophy/dv-methodology)
+- [formal methodology](flows-methods-phylosophy/formal-methodology)
+- [synthesis methodology](flows-methods-phylosophy/synthesis-methodology)
 
 ## How to use this wiki
 
@@ -76,7 +76,7 @@ This wiki mirrors the source disciplines at the top level, but it is not meant t
 - the methodology pages under `flows-methods-phylosophy/` carry the repository-wide rules
 - deeper mirrored directories do not need placeholder pages unless they have real spec content to say
 
-Use the sidebar and the discipline overview pages first.
+Use the GitHub Wiki page list and the discipline overview pages first.
 
 ### GitHub Wiki tab versus this `wiki/` tree
 
@@ -96,8 +96,8 @@ To compare with what the skill would publish from this `wiki/` tree, run `./bin/
 
 ## Main areas
 
-- [rtl](rtl/rtl.md)
-- [dv](dv/dv.md)
-- [fv](fv/fv.md)
-- [syn](syn/syn.md)
-- [flows methods phylosophy](flows-methods-phylosophy/flows-methods-phylosophy.md)
+- [rtl](rtl/rtl)
+- [dv](dv/dv)
+- [fv](fv/fv)
+- [syn](syn/syn)
+- [flows methods philosophy](flows-methods-phylosophy/flows-methods-phylosophy)

@@ -14,6 +14,6 @@ The DV environments in this repository follow a structured, UVM-like layout with
 
 Start here:
 
-- [dv fifo](fifo/dv-fifo.md)
-- [dv counter](counter/dv-counter.md)
-- [dv methodology](../flows-methods-phylosophy/dv-methodology.md)
+- [dv fifo](fifo/dv-fifo)
+- [dv counter](counter/dv-counter)
+- [dv methodology](../flows-methods-phylosophy/dv-methodology)

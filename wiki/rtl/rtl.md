@@ -10,10 +10,10 @@ Use this area for:
 
 Start here:
 
-- [rtl common](common/rtl-common.md)
-- [rtl fifo](fifo/rtl-fifo.md)
-- [rtl counter](counter/rtl-counter.md)
-- [rtl coding style](../flows-methods-phylosophy/rtl-coding-style.md)
+- [rtl common](common/rtl-common)
+- [rtl fifo](fifo/rtl-fifo)
+- [rtl counter](counter/rtl-counter)
+- [rtl coding style](../flows-methods-phylosophy/rtl-coding-style)
 
 Repository rule:
 
