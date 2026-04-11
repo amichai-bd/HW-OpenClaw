@@ -54,7 +54,8 @@ For GitHub Wiki browsing, the mirror should stay readable:
 - keep strong overview pages at the top level and at the IP level
 - do not create placeholder landing pages for every deep directory unless they carry real specification content
 - prefer fewer content-bearing pages over many thin generic landing pages that only restate the tree
-- rely on GitHub Wiki's default page navigation and the main overview pages
+- use `_Sidebar.md` as the curated web hierarchy for GitHub Wiki browsing
+- keep the sidebar shaped like the source mirror plus the repository-wide flows/methods/philosophy area
 - use extensionless wiki-internal links so pages feel like wiki pages rather than markdown files
 - publish the generated GitHub Wiki mirror on demand through `.codex/skills/update-wiki/`
 

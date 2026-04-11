@@ -76,7 +76,7 @@ This wiki mirrors the source disciplines at the top level, but it is not meant t
 - the methodology pages under `flows-methods-phylosophy/` carry the repository-wide rules
 - deeper mirrored directories do not need placeholder pages unless they have real spec content to say
 
-Use the GitHub Wiki page list and the discipline overview pages first.
+Use the hierarchical sidebar and the discipline overview pages first.
 
 ### GitHub Wiki tab versus this `wiki/` tree
 
