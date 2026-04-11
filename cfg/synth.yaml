@@ -10,6 +10,14 @@ profiles:
     abc_mode: cmos2
     delay_target_ps: 1000
     check_is_gating: false
+    constraints:
+      format: yaml-placeholder
+      note: clock/reset/IO timing intent is captured in cfg/ip.yaml; this generic profile does not yet consume full SDC semantics
+    visualization:
+      enabled: true
+      renderer: yosys-show-graphviz
+      yosys_show_options: "-colors 2 -width -stretch"
+      note: structural schematic only; not a physical floorplan, placement, or routing view
     technology:
       kind: generic
       source: yosys

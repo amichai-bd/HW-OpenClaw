@@ -174,6 +174,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
 - The current synthesis flow is selected through `cfg/synth.yaml`.
 - The active shared synth profile uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
+- IP-level synthesis constraints are declared in `cfg/ip.yaml` so clock, reset, and IO timing intent have a stable config home before technology-specific SDC handling is added.
 - The current synthesis `check` report is informational. It is captured as a run artifact, but it is not yet a hard signoff gate because the generic mapped flow still emits Yosys-level structural warnings that need a richer technology model to resolve cleanly.
 - Tests and regressions are selected from YAML definitions under `src/dv/<ip>/code/tests/` and `src/dv/<ip>/regressions/`.
 - Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
@@ -184,7 +185,8 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - The current formal collateral split is `src/fv/common/assumptions/`, `src/fv/common/scripts/`, `src/fv/<ip>/code/`, `src/fv/<ip>/properties/`, and `src/fv/<ip>/proofs/`.
 - The current `<IP>` formal flow intentionally proves a reduced parameter point for control behavior, which is a standard way to keep bounded proofs tractable on parameterized stateful designs.
 - Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
-- Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, and a derived `synth_summary.yaml` artifact for automation.
+- Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, structural schematic DOT/SVG/PNG artifacts, and a derived `synth_summary.yaml` artifact for automation.
+- The schematic SVG/PNG artifacts are synthesized structural connectivity views. They are not physical floorplans, placement views, routed layouts, or timing heatmaps.
 
 ## Development workflow
 

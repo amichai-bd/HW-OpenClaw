@@ -26,6 +26,10 @@ output_layout:
   synth_area_report: workdir/{tag}/{ip}/synth/{ip}_area.rpt
   synth_check_report: workdir/{tag}/{ip}/synth/{ip}_check.rpt
   synth_summary_yaml: workdir/{tag}/{ip}/synth/{ip}_summary.yaml
+  synth_schematic_prefix: workdir/{tag}/{ip}/synth/{ip}_schematic
+  synth_schematic_dot: workdir/{tag}/{ip}/synth/{ip}_schematic.dot
+  synth_schematic_svg: workdir/{tag}/{ip}/synth/{ip}_schematic.svg
+  synth_schematic_png: workdir/{tag}/{ip}/synth/{ip}_schematic.png
   compile_dir: workdir/{tag}/{ip}/compile/
   compile_log: workdir/{tag}/{ip}/compile/compile.log
   binary_path: workdir/{tag}/{ip}/compile/obj_dir/{sim_binary}
@@ -46,6 +50,16 @@ ip:
     fv_top: fifo_prove
     fv_filelist: src/fv/fifo/filelist_fv_fifo.f
     synth_profile: generic_cmos
+    synth_constraints:
+      clock:
+        name: clk
+        period_ns: 10.0
+      reset:
+        name: rst_n
+        active: low
+      io:
+        input_delay_ns: 0.0
+        output_delay_ns: 0.0
     dv_filelist: src/dv/fifo/filelist/filelist_dv_fifo.f
     all_filelist: src/dv/fifo/filelist/filelist_all_fifo.f
     rtl_top: src/rtl/fifo/code/fifo.sv
@@ -64,6 +78,16 @@ ip:
     fv_top: counter_prove
     fv_filelist: src/fv/counter/filelist_fv_counter.f
     synth_profile: generic_cmos
+    synth_constraints:
+      clock:
+        name: clk
+        period_ns: 10.0
+      reset:
+        name: rst_n
+        active: low
+      io:
+        input_delay_ns: 0.0
+        output_delay_ns: 0.0
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv

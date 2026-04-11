@@ -69,6 +69,10 @@ def lookup(mapping: dict, dotted_key: str):
     return value
 
 
+def is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def resolve_template_text(text: str, mapping: dict) -> str:
     def replace(match):
         key = match.group(1)
@@ -167,6 +171,10 @@ def get_ip_data(ip_name: str) -> dict:
             "synth_area_report",
             "synth_check_report",
             "synth_summary_yaml",
+            "synth_schematic_prefix",
+            "synth_schematic_dot",
+            "synth_schematic_svg",
+            "synth_schematic_png",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -236,7 +244,17 @@ def get_synth_profile(profile_name: str) -> dict:
         raise BuildError(f"synth profile '{profile_name}' is defined but not enabled")
     require_keys(
         profile,
-        ["description", "script", "liberty", "abc_mode", "delay_target_ps", "check_is_gating", "technology"],
+        [
+            "description",
+            "script",
+            "liberty",
+            "abc_mode",
+            "delay_target_ps",
+            "check_is_gating",
+            "technology",
+            "constraints",
+            "visualization",
+        ],
         f"profiles.{profile_name}",
     )
     script_name = profile["script"]
@@ -251,6 +269,35 @@ def get_synth_profile(profile_name: str) -> dict:
     if not isinstance(technology, dict):
         raise BuildError(f"'technology' must be a mapping in profiles.{profile_name}")
     require_keys(technology, ["kind", "source", "note"], f"profiles.{profile_name}.technology")
+    constraints = profile["constraints"]
+    if not isinstance(constraints, dict):
+        raise BuildError(f"'constraints' must be a mapping in profiles.{profile_name}")
+    require_keys(constraints, ["format", "note"], f"profiles.{profile_name}.constraints")
+    if not isinstance(constraints["format"], str) or not constraints["format"]:
+        raise BuildError(f"'format' must be a non-empty string in profiles.{profile_name}.constraints")
+    if not isinstance(constraints["note"], str):
+        raise BuildError(f"'note' must be a string in profiles.{profile_name}.constraints")
+    visualization = profile["visualization"]
+    if not isinstance(visualization, dict):
+        raise BuildError(f"'visualization' must be a mapping in profiles.{profile_name}")
+    require_keys(
+        visualization,
+        ["enabled", "renderer", "yosys_show_options", "note"],
+        f"profiles.{profile_name}.visualization",
+    )
+    if not isinstance(visualization["enabled"], bool):
+        raise BuildError(f"'enabled' must be a boolean in profiles.{profile_name}.visualization")
+    if not isinstance(visualization["yosys_show_options"], str):
+        raise BuildError(f"'yosys_show_options' must be a string in profiles.{profile_name}.visualization")
+    if not isinstance(visualization["note"], str):
+        raise BuildError(f"'note' must be a string in profiles.{profile_name}.visualization")
+    if not isinstance(profile["check_is_gating"], bool):
+        raise BuildError(f"'check_is_gating' must be a boolean in profiles.{profile_name}")
+    if visualization["renderer"] != "yosys-show-graphviz":
+        raise BuildError(
+            f"unsupported renderer in profiles.{profile_name}.visualization.renderer: "
+            f"{visualization['renderer']}"
+        )
 
     return {
         "synth_profile": profile_name,
@@ -259,7 +306,12 @@ def get_synth_profile(profile_name: str) -> dict:
         "synth_liberty": resolve_path(profile["liberty"]),
         "synth_abc_mode": profile["abc_mode"],
         "synth_delay_target_ps": profile["delay_target_ps"],
-        "synth_check_is_gating": bool(profile["check_is_gating"]),
+        "synth_check_is_gating": profile["check_is_gating"],
+        "synth_profile_constraints": constraints,
+        "synth_visualization_enabled": visualization["enabled"],
+        "synth_visualization_renderer": visualization["renderer"],
+        "synth_visualization_yosys_show_options": visualization["yosys_show_options"],
+        "synth_visualization_note": visualization["note"],
         "synth_technology": technology,
     }
 
@@ -318,6 +370,7 @@ def get_env_data(required_tool_names: set[str]) -> dict:
         "python3": ["exe", "version", "version_cmd"],
         "verilator": ["exe", "version", "version_cmd", "trace_flag"],
         "gtkwave": ["exe", "version", "version_cmd"],
+        "dot": ["exe", "version", "version_cmd"],
         "yosys": ["exe", "version", "version_cmd"],
         "sby": ["exe", "version", "version_cmd"],
         "boolector": ["exe", "version", "version_cmd"],
@@ -374,6 +427,9 @@ def get_env_data(required_tool_names: set[str]) -> dict:
     if "gtkwave" in tools:
         env_data["gtkwave_exe"] = resolve_template_text(str(tools["gtkwave"]["exe"]), env_context)
         env_data["gtkwave_version"] = resolve_template_text(str(tools["gtkwave"]["version"]), env_context)
+    if "dot" in required_tool_names:
+        env_data["dot_exe"] = resolve_template_text(str(tools["dot"]["exe"]), env_context)
+        env_data["dot_version"] = resolve_template_text(str(tools["dot"]["version"]), env_context)
     if "yosys" in tools:
         env_data["yosys_exe"] = resolve_template_text(str(tools["yosys"]["exe"]), env_context)
         env_data["yosys_version"] = resolve_template_text(str(tools["yosys"]["version"]), env_context)
@@ -428,6 +484,18 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["synth_area_report"] = resolve_path(apply_template(layout["synth_area_report"], ip_data))
     ip_data["synth_check_report"] = resolve_path(apply_template(layout["synth_check_report"], ip_data))
     ip_data["synth_summary_yaml"] = resolve_path(apply_template(layout["synth_summary_yaml"], ip_data))
+    ip_data["synth_schematic_prefix"] = resolve_path(
+        apply_template(layout["synth_schematic_prefix"], ip_data)
+    )
+    ip_data["synth_schematic_dot"] = resolve_path(
+        apply_template(layout["synth_schematic_dot"], ip_data)
+    )
+    ip_data["synth_schematic_svg"] = resolve_path(
+        apply_template(layout["synth_schematic_svg"], ip_data)
+    )
+    ip_data["synth_schematic_png"] = resolve_path(
+        apply_template(layout["synth_schematic_png"], ip_data)
+    )
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
@@ -686,15 +754,40 @@ def collect_required_tool_names(
         tool_requirements = target_cfg.get("tool_requirements", [])
         if not isinstance(tool_requirements, list):
             raise BuildError(f"'tool_requirements' must be a list for target '{target_name}'")
-        for tool_name in tool_requirements:
-            if not isinstance(tool_name, str):
-                raise BuildError(f"tool requirement entries must be strings for target '{target_name}'")
-            required_tool_names.add(format_text(tool_name, context))
+        for tool_requirement in tool_requirements:
+            if isinstance(tool_requirement, str):
+                required_tool_names.add(format_text(tool_requirement, context))
+                continue
+            if not isinstance(tool_requirement, dict):
+                raise BuildError(
+                    f"tool requirement entries must be strings or mappings for target '{target_name}'"
+                )
+            require_keys(tool_requirement, ["name"], f"targets.{target_name}.tool_requirements")
+            when_text = tool_requirement.get("when", "true")
+            if not isinstance(when_text, str):
+                raise BuildError(f"'when' must be a string for target '{target_name}' tool requirement")
+            if not render_condition(when_text, context):
+                continue
+            if not isinstance(tool_requirement["name"], str):
+                raise BuildError(
+                    f"tool requirement name must be a string for target '{target_name}': "
+                    f"{tool_requirement['name']}"
+                )
+            required_tool_names.add(format_text(tool_requirement["name"], context))
     return required_tool_names
 
 
 def format_text(template: str, context: dict) -> str:
     return template.format(**context)
+
+
+def render_condition(template: str, context: dict) -> bool:
+    rendered = render_value(template, context).strip().lower()
+    if rendered in {"1", "true", "yes", "on"}:
+        return True
+    if rendered in {"0", "false", "no", "off", ""}:
+        return False
+    raise BuildError(f"condition did not resolve to a boolean value: {template} -> {rendered}")
 
 
 def normalize_command(command: str | dict) -> tuple[str, str | None]:
@@ -856,8 +949,37 @@ def prepare_synth_script(context: dict) -> None:
     synth_context["yosys_read_verilog_args"] = build_yosys_read_verilog_args(
         context["generated_rtl_filelist"]
     )
+    synth_context["synth_visualization_command"] = ""
+    if context["synth_visualization_enabled"]:
+        synth_context["synth_visualization_command"] = (
+            "show -format svg -viewer none "
+            f"-prefix {context['synth_schematic_prefix']} "
+            f"{context['synth_visualization_yosys_show_options']} "
+            f"{context['rtl_module']}"
+        )
     rendered = source_path.read_text(encoding="utf-8").format(**synth_context)
     destination_path.write_text(rendered + "\n", encoding="utf-8")
+
+
+def render_synth_schematic_png(context: dict) -> None:
+    if not context["synth_visualization_enabled"]:
+        return
+    result = subprocess.run(
+        [
+            context["dot_exe"],
+            "-Tpng",
+            context["synth_schematic_dot"],
+            "-o",
+            context["synth_schematic_png"],
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "dot failed"
+        raise BuildError(f"failed to render synth schematic PNG: {detail}")
 
 
 def list_filelist_sources(filelist_path: str) -> list[str]:
@@ -1034,9 +1156,18 @@ def render_value(template: str, context: dict) -> str:
 def render_paths(templates: list[str], context: dict) -> list[str]:
     paths: list[str] = []
     for template in templates:
-        if not isinstance(template, str):
-            continue
-        rendered = render_value(template, context)
+        path_template = template
+        if isinstance(template, dict):
+            require_keys(template, ["path"], "review_files entry")
+            when_text = template.get("when", "true")
+            if not isinstance(when_text, str):
+                raise BuildError("'when' must be a string in review_files entry")
+            if not render_condition(when_text, context):
+                continue
+            path_template = template["path"]
+        if not isinstance(path_template, str):
+            raise BuildError("review_files entries must be strings or mappings")
+        rendered = render_value(path_template, context)
         if rendered:
             paths.append(rendered)
     return paths
@@ -1070,18 +1201,43 @@ def prepare_synth_summary(context: dict) -> None:
     stat_path = Path(context["synth_stat_json"])
     area_path = Path(context["synth_area_report"])
     check_path = Path(context["synth_check_report"])
+    schematic_dot_path = Path(context["synth_schematic_dot"])
+    schematic_svg_path = Path(context["synth_schematic_svg"])
+    schematic_png_path = Path(context["synth_schematic_png"])
     if not stat_path.is_file():
         raise BuildError(f"missing synth stat report: {stat_path}")
     if not area_path.is_file():
         raise BuildError(f"missing synth area report: {area_path}")
     if not check_path.is_file():
         raise BuildError(f"missing synth check report: {check_path}")
+    if context["synth_visualization_enabled"]:
+        for schematic_path in [schematic_dot_path, schematic_svg_path, schematic_png_path]:
+            if not schematic_path.is_file():
+                raise BuildError(f"missing synth schematic artifact: {schematic_path}")
 
     stat_data = json.loads(stat_path.read_text(encoding="utf-8"))
     area_data = parse_area_report(area_path)
     check_data = parse_check_report(check_path)
 
     design_stats = stat_data.get("design", {})
+    artifacts = {
+        "generated_script": relativize_path(context["generated_synth_script"]),
+        "synth_log": relativize_path(context["synth_log"]),
+        "json_netlist": relativize_path(context["synth_json"]),
+        "verilog_netlist": relativize_path(context["synth_netlist"]),
+        "stat_report": relativize_path(context["synth_stat_json"]),
+        "area_report": relativize_path(context["synth_area_report"]),
+        "check_report": relativize_path(context["synth_check_report"]),
+    }
+    if context["synth_visualization_enabled"]:
+        artifacts.update(
+            {
+                "schematic_dot": relativize_path(context["synth_schematic_dot"]),
+                "schematic_svg": relativize_path(context["synth_schematic_svg"]),
+                "schematic_png": relativize_path(context["synth_schematic_png"]),
+            }
+        )
+
     summary = {
         "synth": {
             "ip": context["ip"],
@@ -1094,6 +1250,8 @@ def prepare_synth_summary(context: dict) -> None:
                 "check_is_gating": context["synth_check_is_gating"],
                 "check_warning_count": check_data["warning_count"],
                 "check_problem_count": check_data["problem_count"],
+                "check_gate_passed": not context["synth_check_is_gating"]
+                or (check_data["warning_count"] == 0 and check_data["problem_count"] == 0),
             },
             "tool": {
                 "yosys_exe": context["yosys_exe"],
@@ -1107,15 +1265,17 @@ def prepare_synth_summary(context: dict) -> None:
                 "abc_mode": context["synth_abc_mode"],
                 "delay_target_ps": context["synth_delay_target_ps"],
             },
-            "artifacts": {
-                "generated_script": relativize_path(context["generated_synth_script"]),
-                "synth_log": relativize_path(context["synth_log"]),
-                "json_netlist": relativize_path(context["synth_json"]),
-                "verilog_netlist": relativize_path(context["synth_netlist"]),
-                "stat_report": relativize_path(context["synth_stat_json"]),
-                "area_report": relativize_path(context["synth_area_report"]),
-                "check_report": relativize_path(context["synth_check_report"]),
+            "constraints": {
+                "profile": context["synth_profile_constraints"],
+                "ip": context["synth_constraints"],
             },
+            "visualization": {
+                "enabled": context["synth_visualization_enabled"],
+                "renderer": context["synth_visualization_renderer"],
+                "note": context["synth_visualization_note"],
+                "yosys_show_options": context["synth_visualization_yosys_show_options"],
+            },
+            "artifacts": artifacts,
             "design": {
                 "num_wires": design_stats.get("num_wires"),
                 "num_wire_bits": design_stats.get("num_wire_bits"),
@@ -1137,6 +1297,14 @@ def prepare_synth_summary(context: dict) -> None:
     summary_path = Path(context["synth_summary_yaml"])
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+    if context["synth_check_is_gating"] and (
+        check_data["warning_count"] > 0 or check_data["problem_count"] > 0
+    ):
+        raise BuildError(
+            "synth check gate failed: "
+            f"{check_data['warning_count']} warning(s), {check_data['problem_count']} problem(s)"
+        )
 
 
 def prepare_fv_summary(context: dict) -> None:
@@ -1218,6 +1386,9 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_script":
         prepare_synth_script(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "render_synth_schematic_png":
+        render_synth_schematic_png(context)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_fv_config":
         prepare_fv_config(context)
@@ -1426,10 +1597,12 @@ def run_qa_checks(context: dict) -> None:
             "fv_top",
             "fv_filelist",
             "synth_profile",
+            "synth_constraints",
             "qa_report",
         ],
         f"ip.{context['ip']}",
     )
+    validate_synth_constraints(context)
 
     required_dirs = [
         f"src/rtl/{context['ip']}/code",
@@ -1714,9 +1887,51 @@ def validate_fv_context(context: dict, fv_profile: dict | None) -> None:
         raise BuildError(f"missing fv solver executable: {solver_exe}")
 
 
+def validate_synth_constraints(context: dict) -> None:
+    if "synth_constraints" not in context:
+        raise BuildError(f"missing 'synth_constraints' in ip.{context['ip']}")
+    if not isinstance(context["synth_constraints"], dict):
+        raise BuildError(f"'synth_constraints' must be a mapping in ip.{context['ip']}")
+    require_keys(
+        context["synth_constraints"],
+        ["clock", "reset", "io"],
+        f"ip.{context['ip']}.synth_constraints",
+    )
+    clock_constraints = context["synth_constraints"]["clock"]
+    reset_constraints = context["synth_constraints"]["reset"]
+    io_constraints = context["synth_constraints"]["io"]
+    if not isinstance(clock_constraints, dict):
+        raise BuildError(f"'clock' must be a mapping in ip.{context['ip']}.synth_constraints")
+    if not isinstance(reset_constraints, dict):
+        raise BuildError(f"'reset' must be a mapping in ip.{context['ip']}.synth_constraints")
+    if not isinstance(io_constraints, dict):
+        raise BuildError(f"'io' must be a mapping in ip.{context['ip']}.synth_constraints")
+    require_keys(clock_constraints, ["name", "period_ns"], f"ip.{context['ip']}.synth_constraints.clock")
+    require_keys(reset_constraints, ["name", "active"], f"ip.{context['ip']}.synth_constraints.reset")
+    require_keys(
+        io_constraints,
+        ["input_delay_ns", "output_delay_ns"],
+        f"ip.{context['ip']}.synth_constraints.io",
+    )
+    if not isinstance(clock_constraints["name"], str) or not clock_constraints["name"]:
+        raise BuildError(f"'name' must be a non-empty string in ip.{context['ip']}.synth_constraints.clock")
+    if not is_number(clock_constraints["period_ns"]) or clock_constraints["period_ns"] <= 0:
+        raise BuildError(
+            f"'period_ns' must be a positive number in ip.{context['ip']}.synth_constraints.clock"
+        )
+    if not isinstance(reset_constraints["name"], str) or not reset_constraints["name"]:
+        raise BuildError(f"'name' must be a non-empty string in ip.{context['ip']}.synth_constraints.reset")
+    if reset_constraints["active"] not in {"low", "high"}:
+        raise BuildError(f"'active' must be 'low' or 'high' in ip.{context['ip']}.synth_constraints.reset")
+    for key in ("input_delay_ns", "output_delay_ns"):
+        if not is_number(io_constraints[key]) or io_constraints[key] < 0:
+            raise BuildError(f"'{key}' must be a non-negative number in ip.{context['ip']}.synth_constraints.io")
+
+
 def validate_synth_context(context: dict) -> None:
     if "synth_profile" not in context:
         raise BuildError(f"missing 'synth_profile' in ip.{context['ip']}")
+    validate_synth_constraints(context)
     context.update(get_synth_profile(context["synth_profile"]))
     if not Path(context["synth_script"]).is_file():
         raise BuildError(f"missing synth script: {context['synth_script']}")
@@ -1855,6 +2070,9 @@ def main() -> int:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
             context.update(fv_profile)
+        if "synth" in requested_targets:
+            require_keys(context, ["synth_profile"], f"ip.{context['ip']}")
+            context.update(get_synth_profile(context["synth_profile"]))
         required_tool_names = collect_required_tool_names(requested_targets, targets_cfg, context)
 
         env_data = get_env_data(required_tool_names)

@@ -28,6 +28,8 @@ targets:
       - synth
     tool_requirements:
       - yosys
+      - name: dot
+        when: "{synth_visualization_enabled}"
     context:
       run_dir: "{synth_out_dir}"
       log_file: "{synth_log}"
@@ -126,12 +128,15 @@ steps:
     review_files:
       - "{synth_log}"
       - "{synth_summary_yaml}"
+      - path: "{synth_schematic_png}"
+        when: "{synth_visualization_enabled}"
       - "{synth_netlist}"
     commands:
       - action: prepare_synth_script
       - cmd: mkdir -p {synth_out_dir}
       - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
         log: "{log_file}"
+      - action: render_synth_schematic_png
       - action: prepare_synth_summary
 
   compile:
