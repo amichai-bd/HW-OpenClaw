@@ -31,6 +31,7 @@ emits deterministic DEF-style review artifacts:
 - `reports/<ip>_timing.rpt`
 - `reports/<ip>_utilization.rpt`
 - `route/<ip>_routed.def`
+- `pd.log`
 - `<ip>_pd_summary.yaml`
 
 GDS, SPEF, signoff reports, and layout images remain later signoff-stage work.

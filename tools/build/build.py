@@ -1501,7 +1501,7 @@ def load_synth_design(context: dict) -> dict:
 
 
 def dbu(value_um: float) -> int:
-    return int(round(value_um * 1000.0))
+    return round(value_um * 1000.0)
 
 
 def sanitize_def_name(name: str, fallback: str) -> str:
@@ -1614,7 +1614,7 @@ def write_def(context: dict, path_text: str, ports: dict, cells: dict, dimension
                 "END SPECIALNETS",
             ]
         )
-    lines.extend(["NETS 0 ;", "END NETS", f"END DESIGN"])
+    lines.extend(["NETS 0 ;", "END NETS", "END DESIGN"])
     path = Path(path_text)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
