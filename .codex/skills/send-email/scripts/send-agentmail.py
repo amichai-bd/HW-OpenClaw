@@ -92,7 +92,10 @@ def find_inbox_id(api_key: str, inbox: str) -> str:
     response = agentmail_request("GET", "/v0/inboxes?limit=100", api_key)
     for item in response.get("inboxes", []):
         if item.get("email") == inbox or item.get("inbox_id") == inbox:
-            return item["inbox_id"]
+            inbox_id = item.get("inbox_id")
+            if inbox_id:
+                return inbox_id
+            sys.exit(f"AgentMail response missing inbox_id for matched inbox: {inbox}")
 
     available = ", ".join(
         sorted(item.get("email", item.get("inbox_id", "")) for item in response.get("inboxes", []))
