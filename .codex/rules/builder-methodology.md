@@ -45,7 +45,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `./setup` is the required repository bootstrap entrypoint for fresh clones and CI provisioning
 - `./build` is the required user-facing repository entrypoint
 - `./build -qa` is the standard repository QA flow for one IP
-- `./build -pd` is the standard physical-design entry point for one IP
+- `./build -ip <ip> -pd` is the standard physical-design entry point for one IP
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
 - CI should invoke the same setup and builder entrypoints used locally
 

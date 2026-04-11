@@ -85,7 +85,7 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 - `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
 - `cfg/fv.yaml` owns shared formal profiles, solver selection, and reusable formal script selection.
 - `cfg/synth.yaml` owns shared synthesis profiles, reusable script selection, and synthesis-technology metadata.
-- `cfg/pd.yaml` owns shared physical-design profiles, backend selection, required tools, required inputs, and planned outputs.
+- Shared physical-design profiles, backend selection, required tools, required inputs, and planned outputs live in `cfg/pd.yaml`.
 - `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
 - Formal-verification collateral should live under `src/fv/`, separate from both `rtl/`, `dv/`, and `syn/`.
 - Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
