@@ -174,11 +174,17 @@ def verify_tools(environment: dict, strict: bool = True) -> None:
         tool_cfg = tools.get(tool_name)
         if not isinstance(tool_cfg, dict):
             raise SetupError(f"missing tool config for '{tool_name}'")
-        exe = str(tool_cfg["exe"])
+        exe_value = tool_cfg.get("exe")
+        if not isinstance(exe_value, str) or not exe_value.strip():
+            raise SetupError(f"missing string 'exe' in environment.tools.{tool_name}")
+        exe = exe_value
         if not Path(exe).expanduser().is_file():
             raise SetupError(f"missing executable for {tool_name}: {exe}")
         if strict:
-            version_cmd = str(tool_cfg["version_cmd"]).split()
+            version_cmd_text = tool_cfg.get("version_cmd")
+            if not isinstance(version_cmd_text, str) or not version_cmd_text.strip():
+                raise SetupError(f"missing string 'version_cmd' in environment.tools.{tool_name}")
+            version_cmd = version_cmd_text.split()
             version_text = capture_cmd(version_cmd)
             print(f"- {tool_name}: {version_text}", flush=True)
         else:

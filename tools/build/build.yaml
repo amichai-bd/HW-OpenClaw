@@ -133,7 +133,7 @@ steps:
       - cmd: mkdir -p {synth_out_dir}
       - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
         log: "{log_file}"
-      - cmd: "{dot_exe} -Tpng {synth_schematic_dot} -o {synth_schematic_png}"
+      - action: render_synth_schematic_png
       - action: prepare_synth_summary
 
   compile:

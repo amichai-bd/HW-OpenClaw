@@ -15,4 +15,4 @@ tee -o {synth_area_report} stat -tech cmos
 tee -o {synth_stat_json} stat -json
 write_json {synth_json}
 write_verilog -noattr {synth_netlist}
-show -format svg -viewer none -prefix {synth_schematic_prefix} {synth_visualization_yosys_show_options} {rtl_module}
+{synth_visualization_command}
