@@ -89,6 +89,16 @@ For detailed style and methodology, consult:
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
 - The GitHub Wiki mirror is updated on demand through the repo-local `.codex/skills/update-wiki/` skill, not through an automatic CI workflow.
 
+## Agent Email
+
+- Project-related outbound email should use the repo-local `.codex/skills/send-email/` skill.
+- The default agent-owned sender inbox is `codex-amichaibd@agentmail.to`.
+- The default project-owner recipient is `amichaibd@gmail.com` when the user says "send me an email".
+- AgentMail credentials must not be committed to the repo.
+- On this system, AgentMail credentials are expected at `~/.openclaw/secrets/agentmail.env`.
+- That file should define `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX`; agents may also use those environment variables directly.
+- To send, use `.codex/skills/send-email/scripts/send-agentmail.py`; the script reads the secret file automatically and must not print the API key.
+
 ## Repository Shape
 
 - `bin/` contains thin user-facing launchers.
