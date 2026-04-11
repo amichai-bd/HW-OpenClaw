@@ -279,6 +279,13 @@ def get_synth_profile(profile_name: str) -> dict:
     )
     if not isinstance(visualization["enabled"], bool):
         raise BuildError(f"'enabled' must be a boolean in profiles.{profile_name}.visualization")
+    if not isinstance(profile["check_is_gating"], bool):
+        raise BuildError(f"'check_is_gating' must be a boolean in profiles.{profile_name}")
+    if visualization["renderer"] != "yosys-show-graphviz":
+        raise BuildError(
+            f"unsupported renderer in profiles.{profile_name}.visualization.renderer: "
+            f"{visualization['renderer']}"
+        )
 
     return {
         "synth_profile": profile_name,
@@ -287,7 +294,7 @@ def get_synth_profile(profile_name: str) -> dict:
         "synth_liberty": resolve_path(profile["liberty"]),
         "synth_abc_mode": profile["abc_mode"],
         "synth_delay_target_ps": profile["delay_target_ps"],
-        "synth_check_is_gating": bool(profile["check_is_gating"]),
+        "synth_check_is_gating": profile["check_is_gating"],
         "synth_profile_constraints": constraints,
         "synth_visualization_enabled": visualization["enabled"],
         "synth_visualization_renderer": visualization["renderer"],
@@ -735,15 +742,35 @@ def collect_required_tool_names(
         tool_requirements = target_cfg.get("tool_requirements", [])
         if not isinstance(tool_requirements, list):
             raise BuildError(f"'tool_requirements' must be a list for target '{target_name}'")
-        for tool_name in tool_requirements:
-            if not isinstance(tool_name, str):
-                raise BuildError(f"tool requirement entries must be strings for target '{target_name}'")
-            required_tool_names.add(format_text(tool_name, context))
+        for tool_requirement in tool_requirements:
+            if isinstance(tool_requirement, str):
+                required_tool_names.add(format_text(tool_requirement, context))
+                continue
+            if not isinstance(tool_requirement, dict):
+                raise BuildError(
+                    f"tool requirement entries must be strings or mappings for target '{target_name}'"
+                )
+            require_keys(tool_requirement, ["name"], f"targets.{target_name}.tool_requirements")
+            when_text = tool_requirement.get("when", "true")
+            if not isinstance(when_text, str):
+                raise BuildError(f"'when' must be a string for target '{target_name}' tool requirement")
+            if not render_condition(when_text, context):
+                continue
+            required_tool_names.add(format_text(str(tool_requirement["name"]), context))
     return required_tool_names
 
 
 def format_text(template: str, context: dict) -> str:
     return template.format(**context)
+
+
+def render_condition(template: str, context: dict) -> bool:
+    rendered = render_value(template, context).strip().lower()
+    if rendered in {"1", "true", "yes", "on"}:
+        return True
+    if rendered in {"0", "false", "no", "off", ""}:
+        return False
+    raise BuildError(f"condition did not resolve to a boolean value: {template} -> {rendered}")
 
 
 def normalize_command(command: str | dict) -> tuple[str, str | None]:
@@ -1111,8 +1138,16 @@ def render_value(template: str, context: dict) -> str:
 def render_paths(templates: list[str], context: dict) -> list[str]:
     paths: list[str] = []
     for template in templates:
+        if isinstance(template, dict):
+            require_keys(template, ["path"], "review_files entry")
+            when_text = template.get("when", "true")
+            if not isinstance(when_text, str):
+                raise BuildError("'when' must be a string in review_files entry")
+            if not render_condition(when_text, context):
+                continue
+            template = template["path"]
         if not isinstance(template, str):
-            continue
+            raise BuildError("review_files entries must be strings or mappings")
         rendered = render_value(template, context)
         if rendered:
             paths.append(rendered)
@@ -2000,6 +2035,9 @@ def main() -> int:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
             context.update(fv_profile)
+        if "synth" in requested_targets:
+            require_keys(context, ["synth_profile"], f"ip.{context['ip']}")
+            context.update(get_synth_profile(context["synth_profile"]))
         required_tool_names = collect_required_tool_names(requested_targets, targets_cfg, context)
 
         env_data = get_env_data(required_tool_names)
