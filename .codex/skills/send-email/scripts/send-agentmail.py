@@ -68,10 +68,19 @@ def agentmail_request(
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             body = response.read().decode("utf-8")
-            return json.loads(body) if body else {}
+            if not body:
+                return {}
+            try:
+                return json.loads(body)
+            except json.JSONDecodeError as exc:
+                sys.exit(f"AgentMail returned invalid JSON from {request.full_url}: {exc}")
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         sys.exit(f"AgentMail HTTP {exc.code}: {body[:1000]}")
+    except urllib.error.URLError as exc:
+        sys.exit(f"AgentMail request failed for {request.full_url}: {exc}")
+    except TimeoutError:
+        sys.exit(f"AgentMail request timed out for {request.full_url}")
 
 
 def find_inbox_id(api_key: str, inbox: str) -> str:
