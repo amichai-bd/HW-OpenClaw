@@ -1,33 +1,32 @@
 profiles:
   openroad_foundation:
-    description: "OpenROAD-oriented physical-design skeleton used before full place-and-route integration."
+    description: "OpenROAD-oriented physical-design DEF flow used before full signoff integration."
     backend:
       kind: openroad-flow-scripts
       source: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
-      entrypoint: external-openroad
-      note: "Issue #135 declares the contract only. Later issues will wire floorplan, place, route, signoff, and technology collateral."
+      entrypoint: internal-def-scaffold
+      note: "The builder emits deterministic DEF-style floorplan, IO, timing, placement, CTS report, and route-stage review artifacts until the external backend and technology collateral are installed."
     bootstrap:
       install_mode: external-or-container
       setup_status: manual-for-now
-      note: "The repo bootstrap documents the backend but does not install OpenROAD yet. The builder fails clearly when the executable is absent."
-    required_tools:
-      - name: openroad
-        exe: /usr/bin/openroad
+      note: "Tier 2 of the software stack (wiki/flows-methods-phylosophy/software-stack.md): bootstrap does not install OpenROAD; DEF-stage review artifacts are generated internally until the external backend is wired; signoff requires that integration plus technology collateral."
+    required_tools: []
     required_inputs:
+      - synth JSON netlist
       - synth verilog netlist
       - synth summary yaml
       - ip physical constraints
-      - technology LEF
-      - technology liberty
-      - timing SDC
+      - timing intent
     planned_outputs:
       - floorplan DEF
       - IO placement TCL
       - placed DEF
-      - routed DEF
+      - CTS report
+      - route-stage DEF
+      - timing report
+      - utilization report
       - final GDS
       - final SPEF
-      - timing report
       - DRC report
       - LVS report
       - layout SVG

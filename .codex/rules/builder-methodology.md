@@ -46,8 +46,10 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `./build` is the required user-facing repository entrypoint
 - `./build -qa` is the standard repository QA flow for one IP
 - `./build -ip <ip> -pd` is the standard physical-design entry point for one IP
+- `./build -ip <ip> -pd -pd-exec` is optional local-only: requires a resolvable `openroad` after the scaffold; do not add to default CI
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
 - CI should invoke the same setup and builder entrypoints used locally
+- default CI is expected to exercise **Tier 1** of the software stack only until PD is deliberately added; see `wiki/flows-methods-phylosophy/software-stack.md`
 
 ## Avoid
 

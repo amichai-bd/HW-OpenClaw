@@ -17,6 +17,8 @@ The repository bootstrap path should also stay standard:
 - `./build` is the execution entrypoint
 - CI should use those same entrypoints instead of re-encoding package and tool logic
 
+The **scope** of `./setup` is **Tier 1** of the [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack) definition (RTL through synthesis). Physical-design backends are **Tier 2** and stay explicit in `cfg/pd.yaml` / `cfg/env.yaml` until the project wires them into bootstrap or CI.
+
 ## UX intent
 
 Builder output should help a human or an AI understand:

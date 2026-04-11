@@ -7,6 +7,7 @@ This directory captures the repository-wide development method beyond the direct
 - [ai-native-cli-first](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/ai-native-cli-first)
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
+- [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
 - [rtl-coding-style](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style)
 - [dv-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology)
 - [formal-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)

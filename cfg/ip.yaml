@@ -37,10 +37,12 @@ output_layout:
   pd_io_placement_tcl: workdir/{tag}/{ip}/pd/floorplan/{ip}_io_placement.tcl
   pd_timing_sdc: workdir/{tag}/{ip}/pd/timing/{ip}.sdc
   pd_placed_def: workdir/{tag}/{ip}/pd/place/{ip}_placed.def
+  pd_cts_report: workdir/{tag}/{ip}/pd/reports/{ip}_cts.rpt
   pd_routed_def: workdir/{tag}/{ip}/pd/route/{ip}_routed.def
   pd_final_gds: workdir/{tag}/{ip}/pd/signoff/{ip}.gds
   pd_final_spef: workdir/{tag}/{ip}/pd/signoff/{ip}.spef
   pd_timing_report: workdir/{tag}/{ip}/pd/reports/{ip}_timing.rpt
+  pd_utilization_report: workdir/{tag}/{ip}/pd/reports/{ip}_utilization.rpt
   pd_drc_report: workdir/{tag}/{ip}/pd/reports/{ip}_drc.rpt
   pd_lvs_report: workdir/{tag}/{ip}/pd/reports/{ip}_lvs.rpt
   pd_layout_svg: workdir/{tag}/{ip}/pd/images/{ip}_layout.svg

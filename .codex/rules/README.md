@@ -29,6 +29,7 @@ It is intentionally separate from the repo-root wiki:
    - `builder-methodology.md`
 4. when onboarding or hardening repository infrastructure:
    - `builder-methodology.md`
+   - `wiki/flows-methods-phylosophy/software-stack.md` (toolchain tiers, PD backend boundary)
    - the standard repo entrypoints `./setup` and `./build`
 5. when publishing the generated GitHub Wiki mirror:
    - `.codex/skills/update-wiki/SKILL.md`

@@ -119,7 +119,7 @@ steps:
     commands:
       - cmd: mkdir -p {lint_out_dir}
       - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
-        log: "{log_file}"
+        log: "{lint_log}"
 
   fv:
     display_name: "fv {ip}"
@@ -133,7 +133,7 @@ steps:
       - action: prepare_fv_config
       - cmd: mkdir -p {fv_out_dir}
       - cmd: cd {fv_out_dir} && {sby_exe} -f -d {fv_run_dir} {generated_fv_config}
-        log: "{log_file}"
+        log: "{fv_log}"
       - action: prepare_fv_summary
 
   synth:
@@ -150,7 +150,7 @@ steps:
       - action: prepare_synth_script
       - cmd: mkdir -p {synth_out_dir}
       - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
-        log: "{log_file}"
+        log: "{synth_log}"
       - action: render_synth_schematic_png
       - action: prepare_synth_summary
 
@@ -164,8 +164,13 @@ steps:
       - "{pd_out_dir}"
     commands:
       - cmd: mkdir -p {pd_out_dir}
+      - action: prepare_pd_floorplan
+      - action: prepare_pd_placement
+      - action: prepare_pd_cts
+      - action: prepare_pd_route
+      - action: prepare_pd_reports
+      - action: gate_pd_exec_backend
       - action: prepare_pd_summary
-      - action: check_pd_backend
 
   compile:
     display_name: "compile {ip}"
