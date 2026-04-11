@@ -25,6 +25,7 @@ It is intentionally separate from the repo-root wiki:
    - `dv-methodology.md`
    - `fv-methodology.md`
    - `synthesis-methodology.md`
+   - `physical-design-methodology.md`
    - `builder-methodology.md`
 4. when onboarding or hardening repository infrastructure:
    - `builder-methodology.md`

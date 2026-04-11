@@ -14,6 +14,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `cfg/ip.yaml` owns IP-specific metadata and output layout
 - `cfg/fv.yaml` owns shared formal profiles
 - `cfg/synth.yaml` owns shared synthesis profiles
+- `cfg/pd.yaml` owns shared physical-design profiles and backend expectations
 - `cfg/env.yaml` owns environment data and exported shell contract
 
 ## Graph and execution rules
@@ -35,7 +36,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 ## Artifact rules
 
 - generated filelists belong under `workdir/<tag>/<ip>/filelist/`
-- compile, test, regress, lint, FV, synth, and debug outputs should use stable structured paths
+- compile, test, regress, lint, FV, synth, PD, and debug outputs should use stable structured paths
 - logs and summary artifacts should be machine-friendly and human-readable
 
 ## Entrypoint rules
@@ -44,6 +45,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `./setup` is the required repository bootstrap entrypoint for fresh clones and CI provisioning
 - `./build` is the required user-facing repository entrypoint
 - `./build -qa` is the standard repository QA flow for one IP
+- `./build -pd` is the standard physical-design entry point for one IP
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
 - CI should invoke the same setup and builder entrypoints used locally
 

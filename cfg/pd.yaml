@@ -1,0 +1,34 @@
+profiles:
+  openroad_foundation:
+    description: "OpenROAD-oriented physical-design skeleton used before full place-and-route integration."
+    backend:
+      kind: openroad-flow-scripts
+      source: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
+      entrypoint: external-openroad
+      note: "Issue #135 declares the contract only. Later issues will wire floorplan, place, route, signoff, and technology collateral."
+    bootstrap:
+      install_mode: external-or-container
+      setup_status: manual-for-now
+      note: "The repo bootstrap documents the backend but does not install OpenROAD yet. The builder fails clearly when the executable is absent."
+    required_tools:
+      - name: openroad
+        exe: /usr/bin/openroad
+    required_inputs:
+      - synth verilog netlist
+      - synth summary yaml
+      - ip physical constraints
+      - technology LEF
+      - technology liberty
+      - timing SDC
+    planned_outputs:
+      - floorplan DEF
+      - IO placement TCL
+      - placed DEF
+      - routed DEF
+      - final GDS
+      - final SPEF
+      - timing report
+      - DRC report
+      - LVS report
+      - layout SVG
+      - layout PNG

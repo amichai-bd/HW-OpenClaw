@@ -103,6 +103,7 @@ def get_bootstrap_data(environment: dict) -> dict:
         "sby_repo": str(sby_cfg["repo"]),
         "sby_ref": str(sby_cfg.get("ref", "master")),
         "sby_install_prefix": install_prefix,
+        "manual_tools": bootstrap.get("manual_tools", {}),
     }
 
 
@@ -199,6 +200,12 @@ def print_plan(environment: dict) -> None:
     for package in bootstrap["apt_packages"]:
         print(f"  - {package}", flush=True)
     print(f"- user install: sby from {bootstrap['sby_repo']} -> {bootstrap['sby_install_prefix']}", flush=True)
+    manual_tools = bootstrap["manual_tools"]
+    if manual_tools:
+        print("- manual/containerized tools:", flush=True)
+        for tool_name, tool_cfg in manual_tools.items():
+            reason = tool_cfg.get("reason", "") if isinstance(tool_cfg, dict) else ""
+            print(f"  - {tool_name}: {reason}", flush=True)
 
 
 def parse_args() -> argparse.Namespace:

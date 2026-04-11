@@ -17,7 +17,7 @@ Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
 bin/     thin user-facing entrypoints
 cfg/     yaml source of truth for environment and flows
 .codex/  agent rules and repo-local skills
-src/     implementation by discipline: rtl, dv, fv, syn
+src/     implementation by discipline: rtl, dv, fv, syn, pd
 tools/   tool implementations
 wiki/    version-controlled specification surface
 workdir/ generated run outputs
@@ -69,6 +69,7 @@ workdir/ generated run outputs
 For detailed style and methodology, consult:
 - [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
 - [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
+- [physical-design-methodology.md](./wiki/flows-methods-phylosophy/physical-design-methodology.md)
 - [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
 - [spec-driven-development.md](./wiki/flows-methods-phylosophy/spec-driven-development.md)
 
@@ -83,6 +84,7 @@ For detailed style and methodology, consult:
 - The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should only materialize YAML-defined exports and PATH updates.
 - Shared formal profile data lives in `cfg/fv.yaml`.
 - Shared synthesis profile data lives in `cfg/synth.yaml`.
+- Shared physical-design profile data lives in `cfg/pd.yaml`.
 - Source filelists should be authored relative to `$MODEL_ROOT`.
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
@@ -103,7 +105,7 @@ For detailed style and methodology, consult:
 
 - `bin/` contains thin user-facing launchers.
 - `tools/` contains implementations.
-- `src/rtl/`, `src/dv/`, `src/fv/`, and `src/syn/` are separate disciplines.
+- `src/rtl/`, `src/dv/`, `src/fv/`, `src/syn/`, and `src/pd/` are separate disciplines.
 - Shared reusable collateral belongs under the relevant discipline’s `common/` directory.
 - Cross-IP composition is allowed when architecturally intentional and declared explicitly through config and filelists, not through ad hoc neighbor-tree dependency.
 
@@ -116,6 +118,7 @@ Useful first reads by topic:
 - build flow and artifacts: [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
 - RTL rules: [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
 - DV rules: [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
+- PD rules: [physical-design-methodology.md](./wiki/flows-methods-phylosophy/physical-design-methodology.md)
 - process and PR flow: [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
 
 Useful `.codex/rules/` files by topic:
@@ -125,13 +128,14 @@ Useful `.codex/rules/` files by topic:
 - [dv-methodology.md](./.codex/rules/dv-methodology.md)
 - [fv-methodology.md](./.codex/rules/fv-methodology.md)
 - [synthesis-methodology.md](./.codex/rules/synthesis-methodology.md)
+- [physical-design-methodology.md](./.codex/rules/physical-design-methodology.md)
 - [builder-methodology.md](./.codex/rules/builder-methodology.md)
 
 ## Standard Entry Points
 
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
-- `./build` is the required user-facing entry point for simulation, formal, synthesis, and related flows.
+- `./build` is the required user-facing entry point for simulation, formal, synthesis, physical design, and related flows.
 - `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
 - Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.

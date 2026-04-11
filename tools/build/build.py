@@ -24,6 +24,7 @@ IP_CONFIG = REPO_ROOT / "cfg" / "ip.yaml"
 ENV_CONFIG = REPO_ROOT / "cfg" / "env.yaml"
 SYNTH_CONFIG = REPO_ROOT / "cfg" / "synth.yaml"
 FV_CONFIG = REPO_ROOT / "cfg" / "fv.yaml"
+PD_CONFIG = REPO_ROOT / "cfg" / "pd.yaml"
 INTERACTIVE_SELECT = "__interactive_select__"
 
 
@@ -92,6 +93,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-lint", action="store_true", help="run lint step")
     parser.add_argument("-fv", action="store_true", help="run formal verification step")
     parser.add_argument("-synth", action="store_true", help="run synthesis step")
+    parser.add_argument("-pd", action="store_true", help="run physical-design step")
     parser.add_argument("-compile", action="store_true", help="run compile step")
     parser.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run a named test")
     parser.add_argument("-regress", nargs="?", const=INTERACTIVE_SELECT, help="run a named regression")
@@ -103,6 +105,7 @@ def parse_args() -> argparse.Namespace:
             1 if args.lint else 0,
             1 if args.fv else 0,
             1 if args.synth else 0,
+            1 if args.pd else 0,
             1 if args.compile else 0,
             1 if args.test else 0,
             1 if args.regress else 0,
@@ -175,6 +178,21 @@ def get_ip_data(ip_name: str) -> dict:
             "synth_schematic_dot",
             "synth_schematic_svg",
             "synth_schematic_png",
+            "pd_out_dir",
+            "pd_log",
+            "pd_summary_yaml",
+            "pd_floorplan_def",
+            "pd_io_placement_tcl",
+            "pd_timing_sdc",
+            "pd_placed_def",
+            "pd_routed_def",
+            "pd_final_gds",
+            "pd_final_spef",
+            "pd_timing_report",
+            "pd_drc_report",
+            "pd_lvs_report",
+            "pd_layout_svg",
+            "pd_layout_png",
             "compile_dir",
             "compile_log",
             "binary_path",
@@ -313,6 +331,81 @@ def get_synth_profile(profile_name: str) -> dict:
         "synth_visualization_yosys_show_options": visualization["yosys_show_options"],
         "synth_visualization_note": visualization["note"],
         "synth_technology": technology,
+    }
+
+
+def get_pd_profile(profile_name: str) -> dict:
+    pd_root = load_yaml(PD_CONFIG)
+    require_keys(pd_root, ["profiles"], str(PD_CONFIG))
+    profiles = pd_root["profiles"]
+    if not isinstance(profiles, dict):
+        raise BuildError(f"'profiles' must be a mapping in {PD_CONFIG}")
+    if profile_name not in profiles:
+        raise BuildError(f"unknown pd profile '{profile_name}'")
+
+    profile = profiles[profile_name]
+    if not isinstance(profile, dict):
+        raise BuildError(f"pd profile '{profile_name}' must be a mapping")
+    require_keys(
+        profile,
+        [
+            "description",
+            "backend",
+            "bootstrap",
+            "required_tools",
+            "required_inputs",
+            "planned_outputs",
+        ],
+        f"profiles.{profile_name}",
+    )
+    backend = profile["backend"]
+    bootstrap = profile["bootstrap"]
+    required_tools = profile["required_tools"]
+    required_inputs = profile["required_inputs"]
+    planned_outputs = profile["planned_outputs"]
+    if not isinstance(backend, dict):
+        raise BuildError(f"'backend' must be a mapping in profiles.{profile_name}")
+    if not isinstance(bootstrap, dict):
+        raise BuildError(f"'bootstrap' must be a mapping in profiles.{profile_name}")
+    if not isinstance(required_tools, list):
+        raise BuildError(f"'required_tools' must be a list in profiles.{profile_name}")
+    if not isinstance(required_inputs, list):
+        raise BuildError(f"'required_inputs' must be a list in profiles.{profile_name}")
+    if not isinstance(planned_outputs, list):
+        raise BuildError(f"'planned_outputs' must be a list in profiles.{profile_name}")
+    require_keys(backend, ["kind", "source", "entrypoint", "note"], f"profiles.{profile_name}.backend")
+    require_keys(
+        bootstrap,
+        ["install_mode", "setup_status", "note"],
+        f"profiles.{profile_name}.bootstrap",
+    )
+    for key in ["kind", "source", "entrypoint", "note"]:
+        if not isinstance(backend[key], str) or not backend[key].strip():
+            raise BuildError(f"'{key}' must be a non-empty string in profiles.{profile_name}.backend")
+    for key in ["install_mode", "setup_status", "note"]:
+        if not isinstance(bootstrap[key], str) or not bootstrap[key].strip():
+            raise BuildError(f"'{key}' must be a non-empty string in profiles.{profile_name}.bootstrap")
+    for index, tool in enumerate(required_tools):
+        if not isinstance(tool, dict):
+            raise BuildError(f"required_tools[{index}] must be a mapping in profiles.{profile_name}")
+        require_keys(tool, ["name", "exe"], f"profiles.{profile_name}.required_tools[{index}]")
+        if not isinstance(tool["name"], str) or not tool["name"].strip():
+            raise BuildError(f"'name' must be a non-empty string in profiles.{profile_name}.required_tools[{index}]")
+        if not isinstance(tool["exe"], str) or not tool["exe"].strip():
+            raise BuildError(f"'exe' must be a non-empty string in profiles.{profile_name}.required_tools[{index}]")
+    for key, values in [("required_inputs", required_inputs), ("planned_outputs", planned_outputs)]:
+        for index, value in enumerate(values):
+            if not isinstance(value, str) or not value.strip():
+                raise BuildError(f"{key}[{index}] must be a non-empty string in profiles.{profile_name}")
+
+    return {
+        "pd_profile": profile_name,
+        "pd_profile_description": profile["description"],
+        "pd_backend": backend,
+        "pd_bootstrap": bootstrap,
+        "pd_required_tools": required_tools,
+        "pd_required_inputs": required_inputs,
+        "pd_planned_outputs": planned_outputs,
     }
 
 
@@ -496,6 +589,21 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["synth_schematic_png"] = resolve_path(
         apply_template(layout["synth_schematic_png"], ip_data)
     )
+    ip_data["pd_out_dir"] = resolve_path(apply_template(layout["pd_out_dir"], ip_data))
+    ip_data["pd_log"] = resolve_path(apply_template(layout["pd_log"], ip_data))
+    ip_data["pd_summary_yaml"] = resolve_path(apply_template(layout["pd_summary_yaml"], ip_data))
+    ip_data["pd_floorplan_def"] = resolve_path(apply_template(layout["pd_floorplan_def"], ip_data))
+    ip_data["pd_io_placement_tcl"] = resolve_path(apply_template(layout["pd_io_placement_tcl"], ip_data))
+    ip_data["pd_timing_sdc"] = resolve_path(apply_template(layout["pd_timing_sdc"], ip_data))
+    ip_data["pd_placed_def"] = resolve_path(apply_template(layout["pd_placed_def"], ip_data))
+    ip_data["pd_routed_def"] = resolve_path(apply_template(layout["pd_routed_def"], ip_data))
+    ip_data["pd_final_gds"] = resolve_path(apply_template(layout["pd_final_gds"], ip_data))
+    ip_data["pd_final_spef"] = resolve_path(apply_template(layout["pd_final_spef"], ip_data))
+    ip_data["pd_timing_report"] = resolve_path(apply_template(layout["pd_timing_report"], ip_data))
+    ip_data["pd_drc_report"] = resolve_path(apply_template(layout["pd_drc_report"], ip_data))
+    ip_data["pd_lvs_report"] = resolve_path(apply_template(layout["pd_lvs_report"], ip_data))
+    ip_data["pd_layout_svg"] = resolve_path(apply_template(layout["pd_layout_svg"], ip_data))
+    ip_data["pd_layout_png"] = resolve_path(apply_template(layout["pd_layout_png"], ip_data))
     ip_data["compile_dir"] = resolve_path(apply_template(layout["compile_dir"], ip_data))
     ip_data["binary_path"] = resolve_path(apply_template(layout["binary_path"], ip_data))
     ip_data["run_dir"] = ip_data["compile_dir"]
@@ -572,6 +680,7 @@ def prompt_for_modes() -> list[str] | None:
         ("lint", "-lint"),
         ("fv", "-fv"),
         ("synth", "-synth"),
+        ("pd", "-pd"),
         ("compile", "-compile"),
         ("test", "-test"),
         ("regress", "-regress"),
@@ -613,6 +722,7 @@ def apply_selected_modes(args: argparse.Namespace, selected_modes: list[str]) ->
     args.lint = "lint" in selected_modes
     args.fv = "fv" in selected_modes
     args.synth = "synth" in selected_modes
+    args.pd = "pd" in selected_modes
     args.compile = "compile" in selected_modes
     args.debug = "debug" in selected_modes
     if "test" in selected_modes and not args.test:
@@ -643,6 +753,8 @@ def build_resolved_command(args: argparse.Namespace) -> str:
         parts.append("-fv")
     if args.synth:
         parts.append("-synth")
+    if args.pd:
+        parts.append("-pd")
     if args.compile:
         parts.append("-compile")
     if args.test:
@@ -731,6 +843,8 @@ def resolve_requested_targets(args: argparse.Namespace) -> list[str]:
         targets.append("fv")
     if args.synth:
         targets.append("synth")
+    if args.pd:
+        targets.append("pd")
     if args.compile:
         targets.append("compile")
     if args.test:
@@ -1307,6 +1421,129 @@ def prepare_synth_summary(context: dict) -> None:
         )
 
 
+def validate_pd_intent(context: dict) -> None:
+    if "pd_constraints" not in context:
+        raise BuildError(f"missing 'pd_constraints' in ip.{context['ip']}")
+    if not isinstance(context["pd_constraints"], dict):
+        raise BuildError(f"'pd_constraints' must be a mapping in ip.{context['ip']}")
+    require_keys(
+        context["pd_constraints"],
+        ["floorplan", "io_boundary", "timing"],
+        f"ip.{context['ip']}.pd_constraints",
+    )
+    floorplan = context["pd_constraints"]["floorplan"]
+    io_boundary = context["pd_constraints"]["io_boundary"]
+    timing = context["pd_constraints"]["timing"]
+    if not isinstance(floorplan, dict):
+        raise BuildError(f"'floorplan' must be a mapping in ip.{context['ip']}.pd_constraints")
+    if not isinstance(io_boundary, dict):
+        raise BuildError(f"'io_boundary' must be a mapping in ip.{context['ip']}.pd_constraints")
+    if not isinstance(timing, dict):
+        raise BuildError(f"'timing' must be a mapping in ip.{context['ip']}.pd_constraints")
+    require_keys(floorplan, ["utilization", "aspect_ratio", "core_margin_um"], f"ip.{context['ip']}.pd_constraints.floorplan")
+    require_keys(io_boundary, ["pin_order_policy", "pin_layers"], f"ip.{context['ip']}.pd_constraints.io_boundary")
+    require_keys(timing, ["clock", "period_ns"], f"ip.{context['ip']}.pd_constraints.timing")
+    if not is_number(floorplan["utilization"]) or floorplan["utilization"] <= 0 or floorplan["utilization"] >= 1:
+        raise BuildError(f"'utilization' must be a number between 0 and 1 in ip.{context['ip']}.pd_constraints.floorplan")
+    if not is_number(floorplan["aspect_ratio"]) or floorplan["aspect_ratio"] <= 0:
+        raise BuildError(f"'aspect_ratio' must be a positive number in ip.{context['ip']}.pd_constraints.floorplan")
+    if not is_number(floorplan["core_margin_um"]) or floorplan["core_margin_um"] < 0:
+        raise BuildError(f"'core_margin_um' must be non-negative in ip.{context['ip']}.pd_constraints.floorplan")
+    if not isinstance(io_boundary["pin_order_policy"], str) or not io_boundary["pin_order_policy"].strip():
+        raise BuildError(f"'pin_order_policy' must be a non-empty string in ip.{context['ip']}.pd_constraints.io_boundary")
+    if not isinstance(io_boundary["pin_layers"], list) or not io_boundary["pin_layers"]:
+        raise BuildError(f"'pin_layers' must be a non-empty list in ip.{context['ip']}.pd_constraints.io_boundary")
+    for index, layer in enumerate(io_boundary["pin_layers"]):
+        if not isinstance(layer, str) or not layer.strip():
+            raise BuildError(f"pin_layers[{index}] must be a non-empty string in ip.{context['ip']}.pd_constraints.io_boundary")
+    if not isinstance(timing["clock"], str) or not timing["clock"].strip():
+        raise BuildError(f"'clock' must be a non-empty string in ip.{context['ip']}.pd_constraints.timing")
+    if not is_number(timing["period_ns"]) or timing["period_ns"] <= 0:
+        raise BuildError(f"'period_ns' must be positive in ip.{context['ip']}.pd_constraints.timing")
+
+
+def prepare_pd_summary(context: dict) -> None:
+    validate_pd_intent(context)
+    tool_status = []
+    for tool in context["pd_required_tools"]:
+        exe = format_text(tool["exe"], context)
+        tool_status.append(
+            {
+                "name": tool["name"],
+                "exe": exe,
+                "available": Path(exe).expanduser().is_file(),
+            }
+        )
+    summary = {
+        "pd": {
+            "ip": context["ip"],
+            "tag": context["tag"],
+            "module": context["rtl_module"],
+            "profile": context["pd_profile"],
+            "profile_description": context["pd_profile_description"],
+            "status": {
+                "completed": False,
+                "reason": "physical-design backend skeleton is declared but not yet executed",
+            },
+            "backend": context["pd_backend"],
+            "bootstrap": context["pd_bootstrap"],
+            "constraints": context["pd_constraints"],
+            "required_inputs": context["pd_required_inputs"],
+            "planned_outputs": context["pd_planned_outputs"],
+            "tools": tool_status,
+            "artifacts": {
+                "synth_netlist": relativize_path(context["synth_netlist"]),
+                "synth_summary": relativize_path(context["synth_summary_yaml"]),
+                "pd_summary": relativize_path(context["pd_summary_yaml"]),
+                "pd_log": relativize_path(context["pd_log"]),
+                "floorplan_def": relativize_path(context["pd_floorplan_def"]),
+                "io_placement_tcl": relativize_path(context["pd_io_placement_tcl"]),
+                "timing_sdc": relativize_path(context["pd_timing_sdc"]),
+                "placed_def": relativize_path(context["pd_placed_def"]),
+                "routed_def": relativize_path(context["pd_routed_def"]),
+                "final_gds": relativize_path(context["pd_final_gds"]),
+                "final_spef": relativize_path(context["pd_final_spef"]),
+                "timing_report": relativize_path(context["pd_timing_report"]),
+                "drc_report": relativize_path(context["pd_drc_report"]),
+                "lvs_report": relativize_path(context["pd_lvs_report"]),
+                "layout_svg": relativize_path(context["pd_layout_svg"]),
+                "layout_png": relativize_path(context["pd_layout_png"]),
+            },
+        }
+    }
+    summary_path = Path(context["pd_summary_yaml"])
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+
+def check_pd_backend(context: dict) -> None:
+    missing_tools = []
+    for tool in context["pd_required_tools"]:
+        exe = Path(format_text(tool["exe"], context)).expanduser()
+        if not exe.is_file():
+            missing_tools.append(f"{tool['name']} ({exe})")
+    if missing_tools:
+        Path(context["pd_log"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(context["pd_log"]).write_text(
+            "physical-design backend is not available\n"
+            f"profile: {context['pd_profile']}\n"
+            f"backend: {context['pd_backend']['kind']}\n"
+            "missing tools:\n"
+            + "\n".join(f"- {tool}" for tool in missing_tools)
+            + "\n",
+            encoding="utf-8",
+        )
+        raise BuildError(
+            "pd backend tool missing for profile "
+            f"'{context['pd_profile']}': {', '.join(missing_tools)}; "
+            f"see {relativize_path(context['pd_summary_yaml'])}"
+        )
+    raise BuildError(
+        "pd backend is declared but real floorplan/place-route execution is intentionally deferred "
+        "to the next physical-design issue"
+    )
+
+
 def prepare_fv_summary(context: dict) -> None:
     status_path = Path(context["fv_run_dir"]) / "status"
     if not status_path.is_file():
@@ -1398,6 +1635,12 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
         return
     if isinstance(command, dict) and command.get("action") == "prepare_synth_summary":
         prepare_synth_summary(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "prepare_pd_summary":
+        prepare_pd_summary(context)
+        return
+    if isinstance(command, dict) and command.get("action") == "check_pd_backend":
+        check_pd_backend(context)
         return
     if isinstance(command, dict) and command.get("action") == "run_regression":
         run_regression(steps_cfg["regress"], context, context.get("selected_tests", []), steps_cfg)
@@ -1598,11 +1841,14 @@ def run_qa_checks(context: dict) -> None:
             "fv_filelist",
             "synth_profile",
             "synth_constraints",
+            "pd_profile",
+            "pd_constraints",
             "qa_report",
         ],
         f"ip.{context['ip']}",
     )
     validate_synth_constraints(context)
+    validate_pd_intent(context)
 
     required_dirs = [
         f"src/rtl/{context['ip']}/code",
@@ -1617,6 +1863,8 @@ def run_qa_checks(context: dict) -> None:
         f"src/fv/{context['ip']}/code",
         f"src/fv/{context['ip']}/properties",
         f"src/fv/{context['ip']}/proofs",
+        "src/pd/common",
+        f"src/pd/{context['ip']}",
     ]
     required_files = [
         context["rtl_filelist"],
@@ -1628,11 +1876,14 @@ def run_qa_checks(context: dict) -> None:
         f"wiki/rtl/{context['ip']}/rtl-{context['ip']}.md",
         f"wiki/dv/{context['ip']}/dv-{context['ip']}.md",
         f"wiki/fv/{context['ip']}/fv-{context['ip']}.md",
+        f"wiki/pd/{context['ip']}/pd-{context['ip']}.md",
         "wiki/rtl/rtl.md",
         "wiki/dv/dv.md",
         "wiki/fv/fv.md",
+        "wiki/pd/pd.md",
         "wiki/flows-methods-phylosophy/repo-structure.md",
         "wiki/flows-methods-phylosophy/builder-methodology.md",
+        "wiki/flows-methods-phylosophy/physical-design-methodology.md",
     ]
 
     for dir_path in required_dirs:
@@ -2070,9 +2321,12 @@ def main() -> int:
             require_keys(context, ["fv_profile", "fv_top", "fv_filelist"], f"ip.{context['ip']}")
             fv_profile = get_fv_profile(context["fv_profile"])
             context.update(fv_profile)
-        if "synth" in requested_targets:
+        if "synth" in requested_targets or "pd" in requested_targets:
             require_keys(context, ["synth_profile"], f"ip.{context['ip']}")
             context.update(get_synth_profile(context["synth_profile"]))
+        if "pd" in requested_targets:
+            require_keys(context, ["pd_profile"], f"ip.{context['ip']}")
+            context.update(get_pd_profile(context["pd_profile"]))
         required_tool_names = collect_required_tool_names(requested_targets, targets_cfg, context)
 
         env_data = get_env_data(required_tool_names)
@@ -2086,8 +2340,10 @@ def main() -> int:
             validate_lint_context(context)
         if "fv" in requested_targets:
             validate_fv_context(context, fv_profile)
-        if "synth" in requested_targets:
+        if "synth" in requested_targets or "pd" in requested_targets:
             validate_synth_context(context)
+        if "pd" in requested_targets:
+            validate_pd_intent(context)
 
         Path(context["compile_dir"]).mkdir(parents=True, exist_ok=True)
 
