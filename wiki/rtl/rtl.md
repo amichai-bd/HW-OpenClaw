@@ -10,10 +10,10 @@ Use this area for:
 
 Start here:
 
-- [rtl common](common/rtl-common)
-- [rtl fifo](fifo/rtl-fifo)
-- [rtl counter](counter/rtl-counter)
-- [rtl coding style](../flows-methods-phylosophy/rtl-coding-style)
+- [rtl common](/amichai-bd/HW-OpenClaw/wiki/rtl/common/rtl-common)
+- [rtl fifo](/amichai-bd/HW-OpenClaw/wiki/rtl/fifo/rtl-fifo)
+- [rtl counter](/amichai-bd/HW-OpenClaw/wiki/rtl/counter/rtl-counter)
+- [rtl coding style](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style)
 
 Repository rule:
 

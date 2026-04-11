@@ -14,6 +14,6 @@ The DV environments in this repository follow a structured, UVM-like layout with
 
 Start here:
 
-- [dv fifo](fifo/dv-fifo)
-- [dv counter](counter/dv-counter)
-- [dv methodology](../flows-methods-phylosophy/dv-methodology)
+- [dv fifo](/amichai-bd/HW-OpenClaw/wiki/dv/fifo/dv-fifo)
+- [dv counter](/amichai-bd/HW-OpenClaw/wiki/dv/counter/dv-counter)
+- [dv methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology)
