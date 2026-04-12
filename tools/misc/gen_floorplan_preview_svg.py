@@ -64,7 +64,6 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     ]
 
     # Standard-cell / macro instances (COMPONENTS to END COMPONENTS), only + PLACED / + FIXED.
-    cells: list[tuple[int, int]] = []
     comp = re.search(
         r"COMPONENTS\s+\d+\s*;(.*?)^END\s+COMPONENTS\s*;?\s*$",
         text,
@@ -72,11 +71,15 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     )
     if comp:
         body = comp.group(1)
-        for m in re.finditer(
-            r"\+ (?:PLACED|FIXED)\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s+\S+\s*;",
-            body,
-        ):
-            cells.append((int(m.group(1)), int(m.group(2))))
+        cells: list[tuple[int, int]] = [
+            (int(m.group(1)), int(m.group(2)))
+            for m in re.finditer(
+                r"\+ (?:PLACED|FIXED)\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s+\S+\s*;",
+                body,
+            )
+        ]
+    else:
+        cells = []
 
     def sx(x: int) -> int:
         return x0 + (x - x0)

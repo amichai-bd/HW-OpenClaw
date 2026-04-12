@@ -1571,6 +1571,36 @@ def ordered_pd_ports(context: dict, ports: dict) -> list[tuple[str, dict]]:
     )
 
 
+def cell_grid_um_xy(index: int, n_cells: int, dimensions: dict) -> tuple[float, float]:
+    """Scalar placement on an estimated square grid inside the core (DEF + GDS preview).
+
+    Shared by scaffold DEF component lines and foundation GDS cell markers.
+    """
+    columns = max(1, math.ceil(math.sqrt(max(1, n_cells))))
+    row = index // columns
+    column = index % columns
+    x_um = dimensions["margin_um"] + ((column + 1) * dimensions["core_width_um"] / (columns + 1))
+    y_um = dimensions["margin_um"] + ((row + 1) * dimensions["core_height_um"] / (columns + 1))
+    return x_um, y_um
+
+
+def perimeter_pin_um_orient(index: int, n_pins: int, dimensions: dict) -> tuple[float, float, str]:
+    """Perimeter pin coordinates and DEF orientation (matches prior distributed-edge policy).
+
+    Shared by scaffold DEF pin lines and foundation GDS IO markers.
+    """
+    step_x = dimensions["die_width_um"] / max(2, n_pins + 1)
+    step_y = dimensions["die_height_um"] / max(2, n_pins + 1)
+    side = index % 4
+    if side == 0:
+        return step_x * (index + 1), 0.0, "N"
+    if side == 1:
+        return dimensions["die_width_um"], step_y * (index + 1), "W"
+    if side == 2:
+        return step_x * (index + 1), dimensions["die_height_um"], "S"
+    return 0.0, step_y * (index + 1), "E"
+
+
 def def_pin_lines(context: dict, ports: dict, dimensions: dict) -> list[str]:
     pin_layers = context["pd_constraints"]["io_boundary"]["pin_layers"]
     pin_items = ordered_pd_ports(context, ports)
@@ -1581,21 +1611,7 @@ def def_pin_lines(context: dict, ports: dict, dimensions: dict) -> list[str]:
         if direction not in {"INPUT", "OUTPUT", "INOUT"}:
             direction = "INOUT"
         layer = pin_layers[index % len(pin_layers)]
-        side = index % 4
-        step_x = dimensions["die_width_um"] / max(2, len(pin_items) + 1)
-        step_y = dimensions["die_height_um"] / max(2, len(pin_items) + 1)
-        if side == 0:
-            x_um, y_um = step_x * (index + 1), 0.0
-            orient = "N"
-        elif side == 1:
-            x_um, y_um = dimensions["die_width_um"], step_y * (index + 1)
-            orient = "W"
-        elif side == 2:
-            x_um, y_um = step_x * (index + 1), dimensions["die_height_um"]
-            orient = "S"
-        else:
-            x_um, y_um = 0.0, step_y * (index + 1)
-            orient = "E"
+        x_um, y_um, orient = perimeter_pin_um_orient(index, len(pin_items), dimensions)
         lines.extend(
             [
                 f"  - {safe_name} + NET {safe_name}",
@@ -1611,17 +1627,13 @@ def def_pin_lines(context: dict, ports: dict, dimensions: dict) -> list[str]:
 def def_component_lines(cells: dict, dimensions: dict, *, placed: bool) -> list[str]:
     cell_items = sorted(cells.items())
     lines = [f"COMPONENTS {len(cell_items)} ;"]
-    columns = max(1, math.ceil(math.sqrt(max(1, len(cell_items)))))
     for index, (_name, cell) in enumerate(cell_items):
         raw_cell_type = str(cell.get("type", "UNKNOWN"))
         safe_cell_type = sanitize_def_name(raw_cell_type, "UNKNOWN")
         safe_name = sanitize_def_name(_name, f"U{index}")
         lines.append(f"  - {safe_name} {safe_cell_type}")
         if placed:
-            row = index // columns
-            column = index % columns
-            x_um = dimensions["margin_um"] + ((column + 1) * dimensions["core_width_um"] / (columns + 1))
-            y_um = dimensions["margin_um"] + ((row + 1) * dimensions["core_height_um"] / (columns + 1))
+            x_um, y_um = cell_grid_um_xy(index, len(cell_items), dimensions)
             lines.append(f"    + PLACED ( {dbu(x_um)} {dbu(y_um)} ) N ;")
         else:
             lines.append("    + UNPLACED ;")
@@ -1650,17 +1662,9 @@ def write_def(context: dict, path_text: str, ports: dict, cells: dict, dimension
 
 def placed_cell_points(cells: dict, dimensions: dict) -> list[tuple[str, str, int, int]]:
     cell_items = sorted(cells.items())
-    columns = max(1, math.ceil(math.sqrt(max(1, len(cell_items)))))
     points: list[tuple[str, str, int, int]] = []
     for index, (name, cell) in enumerate(cell_items):
-        row = index // columns
-        column = index % columns
-        x_um = dimensions["margin_um"] + (
-            (column + 1) * dimensions["core_width_um"] / (columns + 1)
-        )
-        y_um = dimensions["margin_um"] + (
-            (row + 1) * dimensions["core_height_um"] / (columns + 1)
-        )
+        x_um, y_um = cell_grid_um_xy(index, len(cell_items), dimensions)
         points.append(
             (
                 sanitize_def_name(name, f"U{index}"),
@@ -1680,17 +1684,7 @@ def placed_pin_points(
     pin_items = ordered_pd_ports(context, ports)
     points: list[tuple[str, int, int]] = []
     for index, (name, _port) in enumerate(pin_items):
-        side = index % 4
-        step_x = dimensions["die_width_um"] / max(2, len(pin_items) + 1)
-        step_y = dimensions["die_height_um"] / max(2, len(pin_items) + 1)
-        if side == 0:
-            x_um, y_um = step_x * (index + 1), 0.0
-        elif side == 1:
-            x_um, y_um = dimensions["die_width_um"], step_y * (index + 1)
-        elif side == 2:
-            x_um, y_um = step_x * (index + 1), dimensions["die_height_um"]
-        else:
-            x_um, y_um = 0.0, step_y * (index + 1)
+        x_um, y_um, _orient = perimeter_pin_um_orient(index, len(pin_items), dimensions)
         points.append((sanitize_def_name(name, f"PIN{index}"), dbu(x_um), dbu(y_um)))
     return points
 
@@ -1707,6 +1701,11 @@ def gds_real8(value: float) -> bytes:
     while mantissa < 0.0625:
         mantissa *= 16.0
         exponent -= 1
+    if exponent < 0 or exponent > 127:
+        raise ValueError(
+            f"value out of range for GDS REAL*8 encoding "
+            f"(exponent {exponent} not in 0..127): {value!r}"
+        )
     mantissa_int = int(mantissa * (1 << 56))
     return bytes([sign | exponent]) + mantissa_int.to_bytes(7, "big")
 
