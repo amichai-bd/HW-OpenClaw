@@ -92,7 +92,7 @@ For detailed style and methodology, consult:
 - Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
 - Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
 - Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
-- The GitHub Wiki mirror is updated on demand through the repo-local `.codex/skills/update-wiki/` skill, not through an automatic CI workflow.
+- The GitHub Wiki mirror is updated on demand through the repo-local `.codex/skills/update-wiki/` skill, not through an automatic CI workflow. Skill inventory and summaries: [codex-agent-skills.md](./wiki/flows-methods-phylosophy/codex-agent-skills.md).
 
 ## Agent Email
 

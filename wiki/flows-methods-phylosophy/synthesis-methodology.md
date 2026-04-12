@@ -21,6 +21,9 @@ The synthesis discipline should make it easy to answer:
 - what warnings or limitations are known
 
 Foundation-level synthesis is still valuable, but it should be honest about what it is and is not.
+The foundation `check` report is captured before final generic liberty remapping
+so it reflects the stable internal driver model instead of post-map warnings that
+are known to be technology-model artifacts in the current generic flow.
 
 ## Constraints
 

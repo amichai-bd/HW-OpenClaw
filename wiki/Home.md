@@ -22,6 +22,7 @@ If you are new to the repository, read these first:
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
 - [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
+- [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills) — repo-local `.codex/skills/` (wiki publish, AgentMail)
 
 For a fresh clone:
 
@@ -87,7 +88,7 @@ The **versioned source** is this directory on `main`. The **GitHub Wiki** UI is 
 
 Prefer editing markdown here through pull requests. Edits made only in the Wiki web editor can be overwritten on the next skill-driven publish.
 
-Publishing runs by explicit agent action through `.codex/skills/update-wiki/scripts/update-wiki.py`. The compatibility wrapper `./bin/wiki-publish` delegates to the same skill script.
+Publishing runs by explicit agent action through `.codex/skills/update-wiki/scripts/update-wiki.py`. The compatibility wrapper `./bin/wiki-publish` delegates to the same skill script. See [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills) for the full skill inventory and links to each `SKILL.md`.
 
 To **inspect the live published wiki as a git tree** (optional), from the repository root clone the wiki remote into the ignored folder `HW-OpenClaw-wiki` (see root `.gitignore`):
 

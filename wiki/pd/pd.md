@@ -10,18 +10,18 @@ repository defines as a **second toolchain tier** after RTL/DV/FV/synth
 bootstrap. See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
 for why the stack is split and what each tier covers.
 
-The current repository stage is a DEF-stage scaffold:
+The current repository stage is a foundation PD package:
 
 - `cfg/pd.yaml` declares the selected backend strategy
 - `cfg/ip.yaml` declares IP floorplan, IO boundary, and timing intent
 - `src/pd/common/` is the shared physical-design collateral home
 - `src/pd/<ip>/` is the IP-local physical-design collateral home
-- `./build -ip <ip> -pd` consumes synthesis output and emits review DEF artifacts
-- `./build -ip <ip> -pd -pd-exec` (optional, local) additionally checks that an `openroad` binary exists; not used in default CI
+- `./build -ip <ip> -pd` consumes synthesis output and emits review physical-design artifacts
+- `./build -ip <ip> -pd -pd-exec` (optional, local) additionally checks that an `openroad` binary exists at the preferred path in `cfg/env.yaml`; not used in default CI
 
 The selected foundation backend is OpenROAD Flow Scripts. The repository does not
 vendor or install it yet. Until external backend integration lands, the builder
-emits deterministic DEF-style review artifacts:
+emits deterministic foundation review artifacts:
 
 - `floorplan/<ip>_floorplan.def`
 - `floorplan/<ip>_io_placement.tcl`
@@ -31,7 +31,17 @@ emits deterministic DEF-style review artifacts:
 - `reports/<ip>_timing.rpt`
 - `reports/<ip>_utilization.rpt`
 - `route/<ip>_routed.def`
+- `signoff/<ip>.def`
+- `signoff/<ip>.gds`
+- `signoff/<ip>.spef`
+- `reports/<ip>_drc.rpt`
+- `reports/<ip>_lvs.rpt`
+- `images/<ip>_layout.svg`
+- `images/<ip>_layout.png`
 - `pd.log`
 - `<ip>_pd_summary.yaml`
 
-GDS, SPEF, signoff reports, and layout images remain later signoff-stage work.
+The final DEF, GDSII, SPEF, DRC, LVS, and image files are foundation artifacts.
+They are useful for structure, automation, and PR review, but they are not
+PDK-backed signoff results until the external OpenROAD/technology integration is
+wired.

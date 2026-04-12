@@ -49,8 +49,10 @@ The repository should be able to validate its own structural contract.
 
 `./build -ip <ip> -pd` is the physical-design entry point.
 
-At the skeleton stage, PD depends on synthesis, writes a structured
-`pd_summary.yaml`, and then fails clearly if the declared backend tool is missing.
-This keeps the flow honest: the repository has a PD contract, but it does not
-pretend a real floorplan/place-route/signoff backend exists before the backend is
-installed and wired.
+At the foundation stage, PD depends on synthesis, writes a structured
+`pd_summary.yaml`, and emits reviewable DEF, GDSII, SPEF, report, and image
+artifacts from the internal scaffold. When `-pd-exec` is explicitly requested,
+the builder also fails clearly if the declared OpenROAD binary is missing. This
+keeps the flow honest: the repository has a PD contract and final-artifact shape,
+but it does not pretend those artifacts are PDK-backed signoff before the backend
+is installed and wired.

@@ -6,6 +6,7 @@ Implementations invoked by repo entrypoints (`./build`, `./setup`).
 
 - **`tools/build/build.yaml`** — declarative targets and steps (dependency graph, artifacts).
 - **`tools/build/build.py`** — executor for that graph.
+- **`tools/misc/`** — optional debugging utilities that are not normal user-facing entrypoints.
 
 The builder is discipline-agnostic policy-wise: RTL, DV, FV, synthesis, and physical design are all **targets** driven from YAML plus `cfg/*.yaml`, not separate ad hoc scripts.
 

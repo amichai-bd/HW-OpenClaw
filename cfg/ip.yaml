@@ -39,6 +39,7 @@ output_layout:
   pd_placed_def: workdir/{tag}/{ip}/pd/place/{ip}_placed.def
   pd_cts_report: workdir/{tag}/{ip}/pd/reports/{ip}_cts.rpt
   pd_routed_def: workdir/{tag}/{ip}/pd/route/{ip}_routed.def
+  pd_final_def: workdir/{tag}/{ip}/pd/signoff/{ip}.def
   pd_final_gds: workdir/{tag}/{ip}/pd/signoff/{ip}.gds
   pd_final_spef: workdir/{tag}/{ip}/pd/signoff/{ip}.spef
   pd_timing_report: workdir/{tag}/{ip}/pd/reports/{ip}_timing.rpt

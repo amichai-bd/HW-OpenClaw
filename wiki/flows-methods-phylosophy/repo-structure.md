@@ -59,7 +59,7 @@ For GitHub Wiki browsing, the mirror should stay readable:
 - prefer fewer content-bearing pages over many thin generic landing pages that only restate the tree
 - rely on GitHub Wiki's default page navigation and the main overview pages
 - use extensionless wiki-internal links so pages feel like wiki pages rather than markdown files
-- publish the generated GitHub Wiki mirror on demand through `.codex/skills/update-wiki/`
+- publish the generated GitHub Wiki mirror on demand through `.codex/skills/update-wiki/` (see [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills))
 
 ## Repository-wide method pages
 
