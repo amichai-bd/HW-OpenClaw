@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import html
 import json
 import math
 import os
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import threading
 import zlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 
@@ -1752,7 +1753,7 @@ def rectangle_xy(cx: int, cy: int, half_w: int, half_h: int) -> list[tuple[int, 
 
 
 def write_foundation_gds(context: dict, design: dict, dimensions: dict) -> None:
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     date_fields = [now.year, now.month, now.day, now.hour, now.minute, now.second] * 2
     die_x = dbu(dimensions["die_width_um"])
     die_y = dbu(dimensions["die_height_um"])
@@ -1904,12 +1905,13 @@ def write_layout_images(context: dict, design: dict, dimensions: dict) -> None:
 
     cells = placed_cell_points(design["cells"], dimensions)
     pins = placed_pin_points(context, design["ports"], dimensions)
+    title_text = html.escape(str(context["ip"]), quote=False)
     svg_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" width="900" height="900">',
         '<rect x="20" y="20" width="860" height="860" fill="#f7f4ec" stroke="#1f2933" stroke-width="4"/>',
         f'<text x="450" y="48" text-anchor="middle" font-size="24" fill="#111">'
-        f'{context["ip"]} foundation layout - {len(cells)} cells, {len(pins)} pins</text>',
+        f'{title_text} foundation layout - {len(cells)} cells, {len(pins)} pins</text>',
     ]
     for _name, _cell_type, x_value, y_value in cells:
         svg_lines.append(
@@ -1917,13 +1919,14 @@ def write_layout_images(context: dict, design: dict, dimensions: dict) -> None:
             'width="4" height="4" fill="#7a8793"/>'
         )
     for name, x_value, y_value in pins:
+        name_text = html.escape(name, quote=False)
         svg_lines.append(
             f'<circle cx="{sx(x_value):.2f}" cy="{sy(y_value):.2f}" r="7" '
             'fill="#1565c0" stroke="#0d47a1" stroke-width="2"/>'
         )
         svg_lines.append(
             f'<text x="{sx(x_value) + 10:.2f}" y="{sy(y_value) + 4:.2f}" '
-            f'font-size="14" fill="#111">{name}</text>'
+            f'font-size="14" fill="#111">{name_text}</text>'
         )
     svg_lines.append("</svg>")
     svg_path = Path(context["pd_layout_svg"])

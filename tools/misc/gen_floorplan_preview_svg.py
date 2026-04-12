@@ -43,20 +43,20 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     fs_pin = max(int(mmin * 0.022), 1200)
     title_text = html.escape(title, quote=False)
 
-    pins: list[tuple[str, int, int, str]] = []
-    for block in re.finditer(
+    pin_blocks = re.finditer(
         r"-\s+(\S+)\s+\+\s+NET\s+\S+.*?\+\s+PLACED\s*\(\s*(\d+)\s+(\d+)\s*\)\s+(\S+)\s*;",
         text,
         flags=re.DOTALL,
-    ):
-        pins.append(
-            (
-                block.group(1),
-                int(block.group(2)),
-                int(block.group(3)),
-                block.group(4),
-            )
+    )
+    pins: list[tuple[str, int, int, str]] = [
+        (
+            block.group(1),
+            int(block.group(2)),
+            int(block.group(3)),
+            block.group(4),
         )
+        for block in pin_blocks
+    ]
 
     # Standard-cell / macro instances (COMPONENTS to END COMPONENTS), only + PLACED / + FIXED.
     cells: list[tuple[int, int]] = []
