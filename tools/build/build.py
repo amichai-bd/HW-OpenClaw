@@ -1472,9 +1472,10 @@ def validate_pd_intent(context: dict) -> None:
         raise BuildError(f"'core_margin_um' must be non-negative in ip.{context['ip']}.pd_constraints.floorplan")
     if not isinstance(io_boundary["pin_order_policy"], str) or not io_boundary["pin_order_policy"].strip():
         raise BuildError(f"'pin_order_policy' must be a non-empty string in ip.{context['ip']}.pd_constraints.io_boundary")
-    if io_boundary["pin_order_policy"] not in {"grouped_by_interface", "sorted_by_name"}:
+    allowed_policies = {"default", "grouped_by_interface", "sorted_by_name"}
+    if io_boundary["pin_order_policy"] not in allowed_policies:
         raise BuildError(
-            f"'pin_order_policy' must be one of grouped_by_interface or sorted_by_name "
+            f"'pin_order_policy' must be one of default, grouped_by_interface or sorted_by_name "
             f"in ip.{context['ip']}.pd_constraints.io_boundary"
         )
     if not isinstance(io_boundary["pin_layers"], list) or not io_boundary["pin_layers"]:
@@ -1556,7 +1557,8 @@ def ordered_pd_ports(context: dict, ports: dict) -> list[tuple[str, dict]]:
     policy = context["pd_constraints"]["io_boundary"]["pin_order_policy"]
     if policy == "sorted_by_name":
         return sorted(ports.items())
-    if policy != "grouped_by_interface":
+    # "default" is a legacy alias for grouped_by_interface (same ordering).
+    if policy not in {"grouped_by_interface", "default"}:
         raise BuildError(f"unsupported pin_order_policy '{policy}'")
 
     direction_order = {"input": 0, "inout": 1, "output": 2}

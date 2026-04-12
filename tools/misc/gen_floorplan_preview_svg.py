@@ -19,8 +19,9 @@ from pathlib import Path
 
 def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     text = def_path.read_text(encoding="utf-8")
+    # DEF coordinates may be negative in some flows; allow optional signs.
     m = re.search(
-        r"DIEAREA\s*\(\s*(\d+)\s+(\d+)\s*\)\s*\(\s*(\d+)\s+(\d+)\s*\)\s*;",
+        r"DIEAREA\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s*;",
         text,
     )
     if not m:
@@ -48,7 +49,7 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     title_text = html.escape(title, quote=False)
 
     pin_blocks = re.finditer(
-        r"-\s+(\S+)\s+\+\s+NET\s+\S+.*?\+\s+PLACED\s*\(\s*(\d+)\s+(\d+)\s*\)\s+(\S+)\s*;",
+        r"-\s+(\S+)\s+\+\s+NET\s+\S+.*?\+\s+PLACED\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s+(\S+)\s*;",
         text,
         flags=re.DOTALL,
     )
@@ -72,7 +73,7 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     if comp:
         body = comp.group(1)
         for m in re.finditer(
-            r"\+ (?:PLACED|FIXED)\s*\(\s*(\d+)\s+(\d+)\s*\)\s+\S+\s*;",
+            r"\+ (?:PLACED|FIXED)\s*\(\s*([-+]?\d+)\s+([-+]?\d+)\s*\)\s+\S+\s*;",
             body,
         ):
             cells.append((int(m.group(1)), int(m.group(2))))
