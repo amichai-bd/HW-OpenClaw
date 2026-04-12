@@ -24,9 +24,13 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
         text,
     )
     if not m:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        msg = html.escape(str(def_path), quote=False)
         out_path.write_text(
-            "<?xml version='1.0' encoding='UTF-8'?>\n"
-            f"<!-- no DIEAREA in {def_path} -->\n",
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 120" width="900" height="120">\n'
+            f'  <text x="20" y="70" font-size="24" fill="#111">no DIEAREA in {msg}</text>\n'
+            "</svg>\n",
             encoding="utf-8",
         )
         return (0, 0)
