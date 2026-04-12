@@ -17,6 +17,7 @@ from pathlib import Path
 AGENTMAIL_API = "https://api.agentmail.to"
 DEFAULT_SECRET_FILE = Path.home() / ".openclaw/secrets/agentmail.env"
 DEFAULT_INBOX = "codex-amichaibd@agentmail.to"
+MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 
 def read_secret_file(path: Path) -> dict[str, str]:
@@ -106,6 +107,12 @@ def build_attachments(paths: list[Path]) -> list[dict]:
     for path in paths:
         if not path.is_file():
             sys.exit(f"attachment not found: {path}")
+        size_bytes = path.stat().st_size
+        if size_bytes > MAX_ATTACHMENT_SIZE_BYTES:
+            sys.exit(
+                f"attachment too large: {path} is {size_bytes} bytes; "
+                f"limit is {MAX_ATTACHMENT_SIZE_BYTES} bytes"
+            )
         raw = path.read_bytes()
         out.append(
             {

@@ -70,6 +70,10 @@ The script discovers the AgentMail inbox id from the configured inbox email, sen
 
 Attachment MIME types: unknown extensions default to `application/octet-stream`. For `.rpt`, `.log`, `.yaml`, `.def`, and similar text artifacts the script forces `text/plain; charset=utf-8` so Gmail and other clients show a readable preview instead of a blank panel.
 
+Attachment size limit: each file is checked before reading and must be no larger
+than 10 MiB. For larger generated artifacts, send a summary plus the `workdir/`
+path instead of attaching the file.
+
 ## Rules
 
 - Ask for recipient, subject, and body when they are not obvious.

@@ -11,6 +11,7 @@ then shows only the die and IO pins. Pass a *placed* or *routed* DEF (for exampl
 from __future__ import annotations
 
 import argparse
+import html
 import re
 import sys
 from pathlib import Path
@@ -40,6 +41,7 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     r_pin = max(int(mmin * 0.012), 800)
     fs_title = max(int(mmin * 0.045), 2000)
     fs_pin = max(int(mmin * 0.022), 1200)
+    title_text = html.escape(title, quote=False)
 
     pins: list[tuple[str, int, int, str]] = []
     for block in re.finditer(
@@ -47,7 +49,14 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
         text,
         flags=re.DOTALL,
     ):
-        pins.append((block.group(1), int(block.group(2)), int(block.group(3)), block.group(4)))
+        pins.append(
+            (
+                block.group(1),
+                int(block.group(2)),
+                int(block.group(3)),
+                block.group(4),
+            )
+        )
 
     # Standard-cell / macro instances (COMPONENTS to END COMPONENTS), only + PLACED / + FIXED.
     cells: list[tuple[int, int]] = []
@@ -65,14 +74,14 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
             cells.append((int(m.group(1)), int(m.group(2))))
 
     def sy(y: int) -> int:
-        return y1 - y
+        return y1 - (y - y0)
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x0} {y0} {w} {h}" width="900" height="900">',
         f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" fill="#f5f5f5" stroke="#222" stroke-width="{stroke}"/>',
         f'<text x="{x0 + w // 2}" y="{y0 + fs_title + stroke * 2}" text-anchor="middle" '
-        f'font-size="{fs_title}" fill="#111">{title} - {len(cells)} placed cells, {len(pins)} pins '
+        f'font-size="{fs_title}" fill="#111">{title_text} - {len(cells)} placed cells, {len(pins)} pins '
         f"(DEF units)</text>",
     ]
 
@@ -87,13 +96,14 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
 
     for name, px, py, _ori in pins:
         cy = sy(py)
+        name_text = html.escape(name, quote=False)
         lines.append(
             f'<circle cx="{px}" cy="{cy}" r="{r_pin}" fill="#1565c0" stroke="#0d47a1" '
             f'stroke-width="{max(100, stroke // 2)}"/>'
         )
         lines.append(
             f'<text x="{px + r_pin * 2}" y="{cy}" dominant-baseline="middle" '
-            f'font-size="{fs_pin}" fill="#000">{name}</text>'
+            f'font-size="{fs_pin}" fill="#000">{name_text}</text>'
         )
     lines.append("</svg>")
     out_path.parent.mkdir(parents=True, exist_ok=True)

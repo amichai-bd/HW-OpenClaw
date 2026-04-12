@@ -1935,8 +1935,8 @@ def write_layout_images(context: dict, design: dict, dimensions: dict) -> None:
     pixels = bytearray([255, 255, 255] * width * height)
     draw_rect(pixels, width, height, 20, 20, 880, 880, (247, 244, 236))
     for _name, _cell_type, x_value, y_value in cells:
-        cx = int(round(sx(x_value)))
-        cy = int(round(sy(y_value)))
+        cx = round(sx(x_value))
+        cy = round(sy(y_value))
         draw_rect(
             pixels,
             width,
@@ -1948,8 +1948,8 @@ def write_layout_images(context: dict, design: dict, dimensions: dict) -> None:
             (122, 135, 147),
         )
     for _name, x_value, y_value in pins:
-        cx = int(round(sx(x_value)))
-        cy = int(round(sy(y_value)))
+        cx = round(sx(x_value))
+        cy = round(sy(y_value))
         draw_rect(
             pixels,
             width,
