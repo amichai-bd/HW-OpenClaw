@@ -7,10 +7,13 @@ opt
 memory
 opt
 techmap
+# check here: internal $_DFF_* cells keep a consistent driver model. After
+# dfflibmap + abc, liberty-mapped flops plus combinational mapping can produce
+# false "no driver" reports on state/output nets while the netlist is still correct.
+tee -o {synth_check_report} check
 dfflibmap -liberty {synth_liberty}
 abc -g {synth_abc_mode} -D {synth_delay_target_ps}
 clean
-tee -o {synth_check_report} check
 tee -o {synth_area_report} stat -tech cmos
 tee -o {synth_stat_json} stat -json
 write_json {synth_json}

@@ -5,6 +5,7 @@ This directory captures the repository-wide development method beyond the direct
 - [spec-driven-development](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/spec-driven-development)
 - [github-flow](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/github-flow)
 - [ai-native-cli-first](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/ai-native-cli-first)
+- [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills)
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
 - [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)

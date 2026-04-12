@@ -1,15 +1,15 @@
 profiles:
   openroad_foundation:
-    description: "OpenROAD-oriented physical-design DEF flow used before full signoff integration."
+    description: "OpenROAD-oriented physical-design foundation package used before full PDK-backed signoff integration."
     backend:
       kind: openroad-flow-scripts
       source: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
       entrypoint: internal-def-scaffold
-      note: "The builder emits deterministic DEF-style floorplan, IO, timing, placement, CTS report, and route-stage review artifacts until the external backend and technology collateral are installed."
+      note: "The builder emits deterministic floorplan, IO, timing, placement, CTS, route, foundation GDSII/SPEF, informational signoff-report, and layout-image review artifacts until the external backend and technology collateral are installed."
     bootstrap:
       install_mode: external-or-container
       setup_status: manual-for-now
-      note: "Tier 2 of the software stack (wiki/flows-methods-phylosophy/software-stack.md): bootstrap does not install OpenROAD; DEF-stage review artifacts are generated internally until the external backend is wired; signoff requires that integration plus technology collateral."
+      note: "Tier 2 of the software stack (wiki/flows-methods-phylosophy/software-stack.md): bootstrap does not install OpenROAD; foundation PD review artifacts are generated internally until the external backend is wired; real signoff requires that integration plus technology collateral."
     required_tools: []
     required_inputs:
       - synth JSON netlist
@@ -23,6 +23,7 @@ profiles:
       - placed DEF
       - CTS report
       - route-stage DEF
+      - final DEF
       - timing report
       - utilization report
       - final GDS

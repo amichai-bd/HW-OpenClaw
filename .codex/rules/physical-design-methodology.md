@@ -18,8 +18,11 @@ pages.
   introduces a different handoff.
 - Keep floorplan, place, route, signoff, and image artifacts separated in the
   output layout.
-- Be explicit when a generated DEF is an internal review scaffold rather than a
-  routed DEF from an external P&R backend.
+- Be explicit when generated DEF/GDS/SPEF/report/image collateral is an internal
+  foundation review scaffold rather than output from an external P&R/signoff
+  backend.
+- Keep foundation DRC/LVS/extraction/timing status informational until a real
+  PDK-backed backend and rule decks are wired.
 - Update `wiki/pd/` and `wiki/flows-methods-phylosophy/physical-design-methodology.md`
   when PD structure or behavior changes.
 - When changing what belongs in bootstrap vs manual PD tooling, also align

@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import mimetypes
 import os
 import shlex
 import sys
@@ -58,6 +60,8 @@ def agentmail_request(
     path: str,
     api_key: str,
     payload: dict | None = None,
+    *,
+    timeout_s: float = 30,
 ) -> dict:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
@@ -71,7 +75,7 @@ def agentmail_request(
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
             body = response.read().decode("utf-8")
             if not body:
                 return {}
@@ -86,6 +90,31 @@ def agentmail_request(
         sys.exit(f"AgentMail request failed for {request.full_url}: {exc}")
     except TimeoutError:
         sys.exit(f"AgentMail request timed out for {request.full_url}")
+
+
+def guess_content_type(path: Path) -> str:
+    """Return a MIME type Gmail and other clients preview sensibly."""
+    suffix = path.suffix.lower()
+    if suffix in {".rpt", ".log", ".txt", ".md", ".yaml", ".yml", ".sdc", ".def", ".tcl"}:
+        return "text/plain; charset=utf-8"
+    mime, _ = mimetypes.guess_type(str(path))
+    return mime or "application/octet-stream"
+
+
+def build_attachments(paths: list[Path]) -> list[dict]:
+    out: list[dict] = []
+    for path in paths:
+        if not path.is_file():
+            sys.exit(f"attachment not found: {path}")
+        raw = path.read_bytes()
+        out.append(
+            {
+                "content": base64.b64encode(raw).decode("ascii"),
+                "filename": path.name,
+                "content_type": guess_content_type(path),
+            }
+        )
+    return out
 
 
 def find_inbox_id(api_key: str, inbox: str) -> str:
@@ -135,6 +164,13 @@ def main() -> None:
     parser.add_argument("--text-file", type=Path, default=None, help="file containing plain text body")
     parser.add_argument("--inbox", default="", help="AgentMail inbox email or inbox id")
     parser.add_argument("--secret-file", type=Path, default=DEFAULT_SECRET_FILE)
+    parser.add_argument(
+        "--attach",
+        type=Path,
+        action="append",
+        default=[],
+        help="file to attach (repeatable); sent base64 per AgentMail API",
+    )
     args = parser.parse_args()
 
     api_key, configured_inbox = load_config(args.secret_file)
@@ -142,15 +178,21 @@ def main() -> None:
     inbox_id = find_inbox_id(api_key, inbox)
     body = read_body(args)
 
+    payload: dict = {
+        "to": args.to,
+        "subject": args.subject,
+        "text": body,
+    }
+    if args.attach:
+        payload["attachments"] = build_attachments(args.attach)
+
+    send_timeout = 120.0 if args.attach else 30.0
     result = agentmail_request(
         "POST",
         f"/v0/inboxes/{inbox_id}/messages/send",
         api_key,
-        {
-            "to": args.to,
-            "subject": args.subject,
-            "text": body,
-        },
+        payload,
+        timeout_s=send_timeout,
     )
 
     print(

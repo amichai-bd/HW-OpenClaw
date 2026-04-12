@@ -49,7 +49,7 @@ targets:
     review_files:
       - "{pd_log}"
       - "{pd_summary_yaml}"
-      - "{ip_root}"
+      - "{pd_layout_png}"
 
   compile:
     root_steps:
@@ -161,7 +161,7 @@ steps:
     review_files:
       - "{pd_log}"
       - "{pd_summary_yaml}"
-      - "{pd_out_dir}"
+      - "{pd_layout_png}"
     commands:
       - cmd: mkdir -p {pd_out_dir}
       - action: prepare_pd_floorplan
@@ -170,6 +170,7 @@ steps:
       - action: prepare_pd_route
       - action: prepare_pd_reports
       - action: gate_pd_exec_backend
+      - action: prepare_pd_signoff_artifacts
       - action: prepare_pd_summary
 
   compile:

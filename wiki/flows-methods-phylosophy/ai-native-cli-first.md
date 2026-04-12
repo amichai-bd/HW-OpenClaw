@@ -8,3 +8,4 @@ The repository is AI-native and CLI-first.
 - shell commands should stay simple and reviewable
 - repository work should not depend on hidden GUI state
 - debug artifacts should be emitted as structured files that both humans and agents can inspect
+- repo-local agent procedures live under `.codex/skills/` and are documented in [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills)

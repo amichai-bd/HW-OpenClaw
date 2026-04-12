@@ -55,7 +55,20 @@ python3 .codex/skills/send-email/scripts/send-agentmail.py \
   --text-file path/to/body.txt
 ```
 
-The script discovers the AgentMail inbox id from the configured inbox email, sends through `POST /v0/inboxes/{inbox_id}/messages/send`, and prints the message id and thread id. It never prints the API key.
+Attachments (base64 per AgentMail API; repeat `--attach`):
+
+```sh
+python3 .codex/skills/send-email/scripts/send-agentmail.py \
+  --to amichaibd@gmail.com \
+  --subject "Subject with files" \
+  --text "See attachments." \
+  --attach path/to/report.txt \
+  --attach path/to/diagram.svg
+```
+
+The script discovers the AgentMail inbox id from the configured inbox email, sends through `POST /v0/inboxes/{inbox_id}/messages/send`, and prints the message id and thread id. It never prints the API key. Large payloads use a longer HTTP timeout when attachments are present.
+
+Attachment MIME types: unknown extensions default to `application/octet-stream`. For `.rpt`, `.log`, `.yaml`, `.def`, and similar text artifacts the script forces `text/plain; charset=utf-8` so Gmail and other clients show a readable preview instead of a blank panel.
 
 ## Rules
 

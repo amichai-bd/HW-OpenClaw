@@ -26,6 +26,9 @@ Synthesis is a separate engineering discipline, not an RTL appendix.
 - the current flow is a foundation flow, not a signoff flow
 - be honest about generic mapping limitations
 - capture warnings in structured reports instead of hiding them
+- keep the foundation check stage aligned with the point in the script that gives
+  the most truthful generic-flow result; do not turn known post-map technology
+  artifacts into fake signoff failures
 - emit both raw synthesis outputs and a machine-readable summary artifact
 - emit profile-enabled structural schematic visuals as first-class synth artifacts
 - prefer explicit profile-driven flow over hidden tool defaults

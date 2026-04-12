@@ -31,8 +31,10 @@ It is intentionally separate from the repo-root wiki:
    - `builder-methodology.md`
    - `wiki/flows-methods-phylosophy/software-stack.md` (toolchain tiers, PD backend boundary)
    - the standard repo entrypoints `./setup` and `./build`
-5. when publishing the generated GitHub Wiki mirror:
+5. when publishing the generated GitHub Wiki mirror or using other repo-local skills:
+   - wiki: [codex-agent-skills.md](../../wiki/flows-methods-phylosophy/codex-agent-skills.md)
    - `.codex/skills/update-wiki/SKILL.md`
+   - `.codex/skills/send-email/SKILL.md`
 
 ## Rule hierarchy
 

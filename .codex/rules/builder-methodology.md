@@ -45,7 +45,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - `./setup` is the required repository bootstrap entrypoint for fresh clones and CI provisioning
 - `./build` is the required user-facing repository entrypoint
 - `./build -qa` is the standard repository QA flow for one IP
-- `./build -ip <ip> -pd` is the standard physical-design entry point for one IP
+- `./build -ip <ip> -pd` is the standard physical-design entry point for one IP and should emit the foundation PD artifact package
 - `./build -ip <ip> -pd -pd-exec` is optional local-only: requires a resolvable `openroad` after the scaffold; do not add to default CI
 - do not treat raw simulator, formal, or synthesis tool commands as the normal repo interface
 - CI should invoke the same setup and builder entrypoints used locally
@@ -57,6 +57,7 @@ The builder should act as a generic executor of YAML-defined flow, not as a seco
 - hardcoded fallback locations
 - workflow meaning hidden only in Python
 - output layouts invented inside scripts instead of derived from config
+- PD final artifact paths invented in scripts instead of derived from `cfg/ip.yaml`
 - hidden defaults that are not visible in the YAML source of truth
 - repo structure drift that could have been caught by a validator but was left implicit
 - handwritten style drift that could have been caught deterministically before review
