@@ -73,8 +73,11 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
         ):
             cells.append((int(m.group(1)), int(m.group(2))))
 
+    def sx(x: int) -> int:
+        return x0 + (x - x0)
+
     def sy(y: int) -> int:
-        return y1 - (y - y0)
+        return y0 + (y1 - y)
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -88,21 +91,23 @@ def def_to_svg(def_path: Path, out_path: Path, title: str) -> tuple[int, int]:
     r_cell = max(int(mmin * 0.0035), 120)
     sw_cell = max(40, stroke // 4)
     for cx, py in cells:
+        x = sx(cx)
         cy = sy(py)
         lines.append(
-            f'<circle cx="{cx}" cy="{cy}" r="{r_cell}" fill="#bdbdbd" stroke="#616161" '
+            f'<circle cx="{x}" cy="{cy}" r="{r_cell}" fill="#bdbdbd" stroke="#616161" '
             f'stroke-width="{sw_cell}"/>'
         )
 
     for name, px, py, _ori in pins:
+        x = sx(px)
         cy = sy(py)
         name_text = html.escape(name, quote=False)
         lines.append(
-            f'<circle cx="{px}" cy="{cy}" r="{r_pin}" fill="#1565c0" stroke="#0d47a1" '
+            f'<circle cx="{x}" cy="{cy}" r="{r_pin}" fill="#1565c0" stroke="#0d47a1" '
             f'stroke-width="{max(100, stroke // 2)}"/>'
         )
         lines.append(
-            f'<text x="{px + r_pin * 2}" y="{cy}" dominant-baseline="middle" '
+            f'<text x="{x + r_pin * 2}" y="{cy}" dominant-baseline="middle" '
             f'font-size="{fs_pin}" fill="#000">{name_text}</text>'
         )
     lines.append("</svg>")

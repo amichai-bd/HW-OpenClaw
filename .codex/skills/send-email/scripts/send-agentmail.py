@@ -107,13 +107,19 @@ def build_attachments(paths: list[Path]) -> list[dict]:
     for path in paths:
         if not path.is_file():
             sys.exit(f"attachment not found: {path}")
-        size_bytes = path.stat().st_size
+        try:
+            size_bytes = path.stat().st_size
+        except OSError as exc:
+            sys.exit(f"failed to stat attachment {path}: {exc}")
         if size_bytes > MAX_ATTACHMENT_SIZE_BYTES:
             sys.exit(
                 f"attachment too large: {path} is {size_bytes} bytes; "
                 f"limit is {MAX_ATTACHMENT_SIZE_BYTES} bytes"
             )
-        raw = path.read_bytes()
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            sys.exit(f"failed to read attachment {path}: {exc}")
         out.append(
             {
                 "content": base64.b64encode(raw).decode("ascii"),
