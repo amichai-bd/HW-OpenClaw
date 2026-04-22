@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-exec python3 "$(dirname "$0")/../tools/setup/setup.py" "$@"
+exec python "$(dirname "$0")/../tools/setup/setup.py" "$@"

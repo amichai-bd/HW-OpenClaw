@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-exec python3 "$MODEL_ROOT/tools/build/build.py" "$@"
+exec python "$MODEL_ROOT/tools/build/build.py" "$@"

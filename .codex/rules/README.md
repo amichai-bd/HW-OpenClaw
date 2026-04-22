@@ -1,46 +1,35 @@
 # codex rules
 
-This directory is the repository-local execution-facing rules layer for agents.
-
-It is intentionally separate from the repo-root wiki:
-
-- `wiki/` is the specification source of truth
-- `.codex/rules/` is the condensed implementation-facing guidance derived from that spec
-- `.codex/skills/` contains repo-local agent procedures for explicit operations such as publishing the GitHub Wiki mirror
-- `AGENTS.md` is the concise operating contract that tells agents to use both
+Repository-local, execution-facing rules for agents. The wiki (`wiki/`) remains the long-form specification; these files are the short operational layer.
 
 ## Intended use
 
-- read the relevant rule files here before making implementation changes in that discipline
-- keep these rules aligned with the wiki instead of inventing a second source of truth
-- prefer updating the wiki first when the intended behavior or structure changes
-- update these rule files when the agent-facing execution guidance changes materially
+- Read the relevant rule file before editing that area.
+- Keep rules aligned with the wiki when behavior changes.
+- Prefer updating the wiki when the spec changes, then tighten rules here if needed.
 
-## Recommended read order
+## Read order
 
-1. `README.md`
+1. `README.md` (this file)
 2. `github-flow.md`
-3. the discipline rule file relevant to the task:
-   - `rtl-coding-style.md`
-   - `dv-methodology.md`
-   - `fv-methodology.md`
-   - `synthesis-methodology.md`
-   - `physical-design-methodology.md`
-   - `builder-methodology.md`
-4. when onboarding or hardening repository infrastructure:
-   - `builder-methodology.md`
-   - `wiki/flows-methods-phylosophy/software-stack.md` (toolchain tiers, PD backend boundary)
-   - the standard repo entrypoints `./setup` and `./build`
-5. when publishing the generated GitHub Wiki mirror or using other repo-local skills:
-   - wiki: [codex-agent-skills.md](../../wiki/flows-methods-phylosophy/codex-agent-skills.md)
-   - `.codex/skills/update-wiki/SKILL.md`
-   - `.codex/skills/send-email/SKILL.md`
+3. Task-specific:
+   - `rtl-coding-style.md` — RTL
+   - `dv-methodology.md` — verification / DV
+   - `fpga-quartus-methodology.md` — Intel Quartus / FPGA implementation
+   - `builder-methodology.md` — `./build` YAML graph and artifacts
+4. Lint methodology lives in the wiki only: `wiki/flows-methods-phylosophy/lint-methodology.md` (Questa `vlog -lint`; not Verilator).
+5. Standard entrypoints: `./build` and `cfg/env.sh`
+6. Skills: `wiki/flows-methods-phylosophy/codex-agent-skills.md`, `.codex/skills/update-wiki/SKILL.md`, `.codex/skills/send-email/SKILL.md`
 
 ## Rule hierarchy
 
-1. system and developer instructions
-2. repo `AGENTS.md`
-3. repo `wiki/`
-4. repo `.codex/rules/`
+1. System and developer instructions  
+2. Repo `AGENTS.md`  
+3. Repo `wiki/`  
+4. Repo `.codex/rules/`
 
-If these ever disagree, fix the drift instead of guessing.
+If they disagree, fix the drift.
+
+## Stack note
+
+This repo targets **Windows + Git Bash**, **Questa** simulation, and **Quartus** FPGA flows only. Formal verification (FV) and ASIC-style PD rules were removed from the active rule set.

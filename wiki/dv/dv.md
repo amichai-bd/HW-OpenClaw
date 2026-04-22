@@ -2,6 +2,8 @@
 
 This section specifies the dynamic verification environment under `src/dv/`.
 
+**Active tooling:** DV is exercised with **Questa** (`vlog`/`vsim` via `./build -compile`, `-test`, `-regress`). See `AGENTS.md` and [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
 The DV environments in this repository follow a structured, UVM-like layout without importing UVM:
 
 - `code/if/` for interfaces

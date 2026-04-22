@@ -21,7 +21,7 @@ RTL should follow a predictable SystemVerilog style that is easy to review, easy
 
 - sequential updates should be structurally obvious
 - repository macro style should wrap the intended non-blocking sequential pattern
-- explicit handwritten non-blocking assignments should not appear in RTL, DV, or FV source code
+- explicit handwritten non-blocking assignments should not appear in RTL or DV source code (nor in any legacy formal-support code under `src/fv/`)
 - if a sequential pattern is needed and no suitable macro exists yet, add or extend the approved macro surface first instead of writing ad hoc `<=`
 
 ## Shared collateral
@@ -36,6 +36,6 @@ The style rules are not just cosmetic.
 They exist so that:
 
 - RTL intent is easy to parse
-- lint and formal work from consistent structure
+- lint and structural review work from consistent structure
 - generated tooling and AI agents can infer the code shape without special-case heuristics
 - code review focuses on behavior and architecture instead of format ambiguity

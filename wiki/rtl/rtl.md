@@ -2,6 +2,8 @@
 
 This section specifies the design implementation under `src/rtl/`.
 
+**Active tooling:** RTL filelists feed **Questa** (`./build -lint`, `-compile`, …) and **Quartus** (`./build -fpga`). See repo `AGENTS.md` and [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
 Use this area for:
 
 - IP-level RTL intent

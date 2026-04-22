@@ -1,5 +1,7 @@
 # physical-design methodology
 
+> **Historical / legacy:** The default `./build` stack does **not** include **`-pd`** or OpenROAD. This page documents the **original PD methodology** for reference. Active FPGA place/route is **Quartus** (`-fpga`). See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
 Physical design is a separate repository discipline named `pd`.
 
 ## Purpose

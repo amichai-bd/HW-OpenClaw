@@ -1,5 +1,7 @@
 # fv common
 
+> **Historical / legacy:** Not part of the default `./build` stack. See [fv](/amichai-bd/HW-OpenClaw/wiki/fv/fv) and [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
 This area specifies shared formal collateral used across IPs.
 
 Current contents:

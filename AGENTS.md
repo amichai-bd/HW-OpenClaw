@@ -1,154 +1,69 @@
-# AGENTS.md — HW-OpenClaw repository
+# AGENTS.md — HW-OpenClaw
 
-This file is the concise operating contract for agents working in this repository.
-Detailed structure, methods, and philosophy live in the repo-root `wiki/`.
+Operating contract for agents in **this repository only**. The product is an **FPGA-oriented**, **Windows + Git Bash** hardware flow: **Questa/ModelSim** (`vlib`, `vlog`, `vsim`) for RTL/DV and **Intel Quartus** for FPGA implementation. There is **no** Linux/WSL path, **no** Verilator, **no** Yosys/SBY formal flow, and **no** ASIC-style physical-design scaffold in the active builder.
 
-## Start Here
+## Read order
 
-- Read [wiki/Home.md](./wiki/Home.md) first.
-- Treat the wiki as the version-controlled specification surface of the repository.
-- Use the relevant mirrored wiki path and the methodology pages under `wiki/flows-methods-phylosophy/` as the deeper source of truth.
-- For implementation work, also consult the relevant files under `.codex/rules/`. In this repository, `.codex/rules/` is the condensed execution-facing rules layer derived from the wiki.
-- Keep this `AGENTS.md` concise. Repository-wide philosophy, long-form rules, and detailed methodology belong in the wiki.
+1. This file.
+2. `wiki/Home.md` for navigation.
+3. `.codex/rules/README.md` and the rule file for the task (`rtl-coding-style.md`, `dv-methodology.md`, `fpga-quartus-methodology.md`, `builder-methodology.md`, `github-flow.md`).
+4. Wiki canon for stack and lint: `wiki/flows-methods-phylosophy/software-stack.md`, `wiki/flows-methods-phylosophy/fpga-quartus-methodology.md`, `wiki/flows-methods-phylosophy/lint-methodology.md`.
+5. Mirrored wiki under `wiki/rtl/`, `wiki/dv/`, and `wiki/flows-methods-phylosophy/` when changing behavior or structure.
 
-## Quick Orientation
+## Repository layout (FPGA stack)
 
 ```text
-bin/     thin user-facing entrypoints
-cfg/     yaml source of truth for environment and flows
-.codex/  agent rules and repo-local skills
-src/     implementation by discipline: rtl, dv, fv, syn, pd
-tools/   tool implementations
-wiki/    version-controlled specification surface
-workdir/ generated run outputs
+bin/       user entrypoints (build, etc.)
+cfg/       YAML: env + IP metadata (paths, tops, tests)
+.codex/    agent rules + skills
+src/rtl/   SystemVerilog RTL
+src/dv/    dynamic verification (tb, env, tests, regressions)
+tools/     builder implementation
+wiki/      version-controlled spec surface
+workdir/   generated outputs (gitignored)
 ```
 
-## Workflow
+Legacy directories under `src/fv/`, `src/syn/`, and `src/pd/` may still exist as **historical reference**; the **supported** flow is RTL + DV + Quartus. Do not add new formal or ASIC-PD dependencies without an explicit repo decision.
 
-- All meaningful changes start from an issue.
-- Each issue must begin from the specification with wording such as `according to wiki wiki/...`.
-- Each issue should carry the correct labels for the change type, for example `bug`, `enhancement`, or `documentation`.
-- Each issue should be implemented on a short-lived branch whose name starts with the issue number.
-- Open a pull request before merging to `main`.
-- Each pull request must reference the relevant wiki path.
-- Pull requests are expected to satisfy the repository gate checks before merge.
-- Pull requests are also expected to satisfy the PR-Agent review gate before merge.
-- Pull requests are also expected to satisfy the CodeRabbit review gate before merge.
-- Once an agent opens a pull request, the task is not complete until the pull request is green, merged, and the local workspace is synced back to `main`.
-- Agents are expected to poll their open pull requests, watch CI, PR-Agent, CodeRabbit, and review feedback, fix problems on the same branch, and stay with the pull request until merge completes.
-- If PR-Agent raises findings or comments, address them before merge. Do not leave PR-Agent findings unresolved and assume the pull request is ready anyway.
-- If CodeRabbit raises findings or review threads, address them before merge. Do not leave CodeRabbit findings unresolved and assume the pull request is ready anyway.
-- PR-Agent should answer in the repository-defined structured format from `.pr_agent.toml`. Agents should use that structure to decide what is blocking, what is informational, and what needs a code or doc fix.
-- PR-Agent and CodeRabbit have different gate surfaces. PR-Agent is the repository-managed GitHub Actions review gate configured by `.pr_agent.toml`. CodeRabbit is the GitHub App review gate configured by `.coderabbit.yaml` and can also block merge through unresolved review conversations.
-- If `main` advanced while a pull request stayed open, merge current `main` into the branch (or rebase) and push so gates and reviews run against an up-to-date base.
-- If the PR-Agent workflow concludes **cancelled** rather than **failure**, re-run that workflow run or push to the branch; treat that as automation or concurrency, not a completed PR-Agent verdict.
-- The normal finish state is native GitHub auto-merge after the required PR/build checks and conversation-resolution requirements are clean.
-- After merge, delete the branch locally and on origin.
-- If a change resolves an issue, use closing language such as `Closes #<issue>` in the commit message and/or pull request body.
+## Standard commands
 
-## Spec-Driven Rule
+- Shell: `. cfg/env.sh` (exports from `cfg/env.yaml`).
+- Build: `./build` → `bin/build` → `tools/build/build.py`.
 
-- The repository is spec-driven.
-- The top-level `wiki/` tree mirrors `src/` and is the source of truth for intended structure and behavior.
-- `wiki/flows-methods-phylosophy/` holds repository-wide flow, methods, coding rules, and philosophy.
-- Changes in `src/` must be checked against the relevant wiki path and should update the wiki when intended structure, behavior, or method changes.
-- Changes in `wiki/` must be checked against the corresponding implementation paths so spec and implementation remain aligned.
-- If code reveals ambiguity, missing detail, or the wrong abstraction in the wiki, fix the wiki as part of the same change.
+Typical invocations:
 
-## Coding Rules
+```bash
+./build -ip fifo -qa -lint -compile -test sanity -tag dev1
+./build -ip fifo -regress level_0 -tag dev1
+./build -ip fifo -fpga -tag q1
+./build -ip fifo -compile -test sanity -fpga -tag q1   # vlog→vsim→review, then Quartus
+```
 
-- Keep only short repository-level examples here. The detailed coding rules live in the wiki pages listed below.
-- Module and file names must match and be lowercase.
-- Parameter names must be uppercase.
-- Signal names should be lowercase with underscores.
-- Use `always_comb` for combinational logic and `always_ff` for sequential logic.
-- Do not use plain `always`.
-- Do not combine `logic` declarations with inline initialization or assignment.
-- Keep non-blocking assignments inside approved macros only. Do not write explicit `<=` assignments in handwritten RTL, DV, or FV code.
+- `-qa` — structure, filelists, wiki presence, RTL/DV style rules.
+- `-lint` — `vlog -lint` on RTL filelist.
+- `-compile` — `vlib` + `vlog` on full DV filelist.
+- `-test` / `-regress` — per test: **`vlog`** (logged to `tests/<name>/vlog.log`) → **`vsim`** → **review** (tails logs + artifact paths), then any later targets.
+- `-fpga` — writes `workdir/<tag>/<ip>/quartus/synth_hw.tcl` from `cfg/ip.yaml` `fpga:` + RTL filelist, runs **`quartus_sh -t synth_hw.tcl`** (full `execute_flow -compile`). If `-test` or `-regress` is also selected, FPGA runs **after** simulation completes. On failure, stderr includes **`[quartus-triage]`** (key `.rpt` paths, a suggested `rg` line, and the first matching error lines from `quartus.log`).
+- `-debug` — GTKWave on saved VCDs (optional tool).
 
-For detailed style and methodology, consult:
-- [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
-- [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
-- [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md)
-- [physical-design-methodology.md](./wiki/flows-methods-phylosophy/physical-design-methodology.md)
-- [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
-- [spec-driven-development.md](./wiki/flows-methods-phylosophy/spec-driven-development.md)
+Override environment file: `HW_OPENCLAW_ENV_FILE` or `cfg/env.local.yaml` (gitignored).
 
-## Tool And Config Rules
+## Tooling assumptions
 
-- The repository **software stack** is intentionally **two-tier**: `./setup` provisions **RTL, DV, FV, lint, and Yosys synthesis** for normal dev and CI; **physical place-and-route** is a **separate backend tier** (OpenROAD-class, declared in `cfg/pd.yaml`) so P&R is not conflated with logical synthesis. Rationale and boundaries: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md).
-- **`openroad`** (or the wired equivalent) is listed under `cfg/env.yaml` → `manual_tools` until the PD backend is integrated into bootstrap or CI; `./build -ip <ip> -pd` remains the PD entry point and should fail clearly if the profile requires a missing backend executable.
-- YAML files are the source of truth for repository tools.
-- Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
-- If a tool needs build flow definitions, read them from the tool YAML file.
-- The builder should treat `tools/build/build.yaml` as a declarative target/step graph, with dependency order and parallelism expressed through explicit `depends_on` fields.
-- If a tool needs IP-specific paths, tops, tests, regressions, binaries, or output layout, read them from the relevant config YAML file.
-- Repository environment data lives in `cfg/env.yaml`, and shell tools should source `cfg/env.sh` as the entry point to that data.
-- The shell export contract itself should be defined in `cfg/env.yaml`; `cfg/env.sh` should only materialize YAML-defined exports and PATH updates.
-- Shared formal profile data lives in `cfg/fv.yaml`.
-- Shared synthesis profile data lives in `cfg/synth.yaml`.
-- Shared physical-design profile data lives in `cfg/pd.yaml`.
-- Source filelists should be authored relative to `$MODEL_ROOT`.
-- Tools should translate source filelists into generated explicit filelists under `workdir/` when downstream tools require absolute paths.
-- Structured run outputs should be described in YAML and emitted under `workdir/<tag>/<ip>/...`.
-- Scripts should fail clearly when required YAML keys or files are missing instead of guessing.
-- The GitHub Wiki mirror is updated on demand through the repo-local `.codex/skills/update-wiki/` skill, not through an automatic CI workflow. Skill inventory and summaries: [codex-agent-skills.md](./wiki/flows-methods-phylosophy/codex-agent-skills.md).
+- **Host:** Windows, **Git Bash** (USB-friendly FPGA programming).
+- **EDA:** Questa/ModelSim and Quartus on **PATH** or set absolute `exe` paths in `cfg/env.yaml` / `env.local.yaml`.
+- **Python:** `python` on PATH for `cfg/env.sh` and the builder.
 
-## Agent Email
+## Spec and process
 
-- Project-related outbound email should use the repo-local `.codex/skills/send-email/` skill.
-- The default agent-owned sender inbox is `codex-amichaibd@agentmail.to`.
-- The default project-owner recipient is `amichaibd@gmail.com` when the user says "send me an email".
-- AgentMail credentials must not be committed to the repo.
-- On this system, AgentMail credentials are expected at `~/.openclaw/secrets/agentmail.env`.
-- That file should define `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX`; agents may also use those environment variables directly.
-- To send, use `.codex/skills/send-email/scripts/send-agentmail.py`; the script reads the secret file automatically and must not print the API key.
+- Spec-driven: meaningful changes tie to issues and `wiki/` paths.
+- PRs reference wiki; keep `.codex/rules/` aligned when agent-facing guidance changes.
+- PR-Agent / CodeRabbit expectations remain as configured in `.pr_agent.toml` / `.coderabbit.yaml`.
 
-## Repository Shape
+## Agent email
 
-- `bin/` contains thin user-facing launchers.
-- `tools/` contains implementations.
-- `src/rtl/`, `src/dv/`, `src/fv/`, `src/syn/`, and `src/pd/` are separate disciplines.
-- Shared reusable collateral belongs under the relevant discipline’s `common/` directory.
-- Cross-IP composition is allowed when architecturally intentional and declared explicitly through config and filelists, not through ad hoc neighbor-tree dependency.
+- Use `.codex/skills/send-email/` for outbound mail; do not commit secrets (`~/.openclaw/secrets/agentmail.env`).
 
-For detailed structure, consult:
-- [repo-structure.md](./wiki/flows-methods-phylosophy/repo-structure.md)
-- [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
+## Wiki mirror
 
-Useful first reads by topic:
-- structure and navigation: [repo-structure.md](./wiki/flows-methods-phylosophy/repo-structure.md)
-- toolchain tiers and PD backend: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md)
-- build flow and artifacts: [builder-methodology.md](./wiki/flows-methods-phylosophy/builder-methodology.md)
-- RTL rules: [rtl-coding-style.md](./wiki/flows-methods-phylosophy/rtl-coding-style.md)
-- DV rules: [dv-methodology.md](./wiki/flows-methods-phylosophy/dv-methodology.md)
-- PD rules: [physical-design-methodology.md](./wiki/flows-methods-phylosophy/physical-design-methodology.md)
-- process and PR flow: [github-flow.md](./wiki/flows-methods-phylosophy/github-flow.md)
-
-Useful `.codex/rules/` files by topic:
-- [README.md](./.codex/rules/README.md)
-- [github-flow.md](./.codex/rules/github-flow.md)
-- [rtl-coding-style.md](./.codex/rules/rtl-coding-style.md)
-- [dv-methodology.md](./.codex/rules/dv-methodology.md)
-- [fv-methodology.md](./.codex/rules/fv-methodology.md)
-- [synthesis-methodology.md](./.codex/rules/synthesis-methodology.md)
-- [physical-design-methodology.md](./.codex/rules/physical-design-methodology.md)
-- [builder-methodology.md](./.codex/rules/builder-methodology.md)
-
-## Standard Entry Points
-
-- The standard shell entrypoint is `. cfg/env.sh`.
-- The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
-- `./build` is the required user-facing entry point for simulation, formal, synthesis, physical design, and related flows.
-- Physical design: `-pd` runs the scaffold; `-pd-exec` (requires `-pd`) is an optional **local** OpenROAD binary gate. Do **not** add `-pd` or `-pd-exec` to the default GitHub Actions merge gate unless the project explicitly opts into Tier-2 PD in CI.
-- `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
-- Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
-- The builder supports combining multiple discipline flags in one command.
-- `-qa` is the standard repository QA check for an IP and should be used before or alongside other discipline flows when structural or style drift is a concern.
-- Shared prerequisites such as generated filelists and compile should run once per invocation when needed.
-- `-debug` remains standalone.
-- `-test` and `-regress` remain mutually exclusive in a single invocation.
-- GitHub Actions gates should invoke the same repository setup and builder entrypoints used locally rather than re-encoding tool logic in workflow YAML.
-- GitHub Actions PR gates should include the PR-Agent review action with repository-specific instructions from the repo-root `.pr_agent.toml`.
-- CodeRabbit should be configured from the repo-root `.coderabbit.yaml` and used as an additional PR review gate on the public repository.
-- Wiki publishing should use `.codex/skills/update-wiki/scripts/update-wiki.py` or the compatibility wrapper `./bin/wiki-publish`.
+- Publish the GitHub wiki mirror with `.codex/skills/update-wiki/` when needed.

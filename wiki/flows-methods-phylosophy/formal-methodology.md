@@ -1,6 +1,8 @@
 # formal methodology
 
-Formal verification is a first-class discipline.
+> **Historical / legacy:** Formal verification is **not** part of the default `./build` contract (Windows + Questa + Quartus). This page remains as **design guidance** if formal work is reintroduced. See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
+Formal verification is a first-class discipline **in the historical document model below**.
 
 - formal collateral lives under `src/fv/`
 - shared assumptions and scripts live under `src/fv/common/`

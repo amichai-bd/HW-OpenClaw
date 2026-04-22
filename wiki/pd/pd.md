@@ -7,8 +7,9 @@ floorplan, placement, routing, extraction, signoff reports, and review images.
 
 That work requires a **P&R backend** (place-and-route engine), which the
 repository defines as a **second toolchain tier** after RTL/DV/FV/synth
-bootstrap. See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
-for why the stack is split and what each tier covers.
+bootstrap.
+
+> **Historical / legacy:** The active `./build` stack is **Windows + Questa + Quartus**; **`-pd`** and OpenROAD are **not** supported targets today. The text below describes the **original foundation PD package** for reference. See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
 
 The current repository stage is a foundation PD package:
 

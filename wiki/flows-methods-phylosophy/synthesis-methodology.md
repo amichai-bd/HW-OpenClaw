@@ -1,5 +1,7 @@
 # synthesis methodology
 
+> **Historical / legacy:** The **active** hardware synthesis path is **Intel Quartus** via `./build -fpga` ([fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology)). This page describes the **older Yosys / `cfg/synth.yaml` foundation** model for reference; it is **not** in the default builder.
+
 Synthesis is a separate engineering discipline.
 
 - synthesis collateral lives under `src/syn/`

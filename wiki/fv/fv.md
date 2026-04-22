@@ -1,5 +1,7 @@
 # fv
 
+> **Historical / legacy:** The default `./build` stack is **Windows + Git Bash**, **Questa** (`vlib`/`vlog`/`vsim`), and **Intel Quartus** (`-fpga`). Formal verification is **not** a supported builder target in this configuration. This wiki tree remains as **spec mirror / reference** for any future formal work. See [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack) and repo `AGENTS.md`.
+
 This section specifies the formal verification discipline under `src/fv/`.
 
 The repository treats formal as a first-class discipline, separate from RTL, DV, and synthesis.

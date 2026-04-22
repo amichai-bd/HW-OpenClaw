@@ -1,6 +1,6 @@
 # HW-OpenClaw
 
-HW-OpenClaw is a hardware-design repository driven through short task cycles, with SystemVerilog RTL, a pure-SystemVerilog DV environment, and a YAML-driven builder flow around Verilator.
+HW-OpenClaw is a **Windows + Git Bash** hardware repository: SystemVerilog RTL, pure-SystemVerilog DV, a **YAML-driven `./build` flow** using **Intel Questa/ModelSim** (`vlib`, `vlog`, `vsim`) and **Intel Quartus** for FPGA work. Legacy `src/fv/`, `src/syn/`, and `src/pd/` trees remain as reference; the **supported** builder targets are lint, compile, sim, regress, Quartus smoke (`-fpga`), and QA.
 
 ## Status
 
@@ -28,10 +28,7 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 ├── cfg/
 │   ├── env.sh
 │   ├── env.yaml
-│   ├── fv.yaml
-│   ├── ip.yaml
-│   ├── pd.yaml
-│   └── synth.yaml
+│   └── ip.yaml
 ├── src/
 │   ├── dv/
 │   │   └── <ip>/
@@ -76,135 +73,54 @@ The badge reflects the latest completed GitHub Actions run for `main`, not the s
 
 ## Design rules
 
-- The repository follows spec-driven development. The repo-root `wiki/` is the version-controlled specification surface.
-- `wiki/` mirrors the `src/` structure at the top level, and `wiki/flows-methods-phylosophy/` captures repository-wide flow, methods, and philosophy.
-- Every issue must reference the relevant wiki path and begin from the specification with wording such as `according to wiki wiki/...`.
-- `src/` changes must be reviewed against the referenced wiki and should update the wiki when the intended structure, behavior, or method changes.
-- wiki changes must also be reviewed against the affected `src/` paths so spec and implementation do not drift.
-- YAML files are the source of truth for tool flow, IP metadata, output layout, and environment data.
-- The **software stack** is defined in the wiki ([software-stack](wiki/flows-methods-phylosophy/software-stack.md)): **Tier 1** is `./setup` (RTL, DV, FV, lint, Yosys synth) for everyday work and CI; **Tier 2** is the **physical-design / P&R backend** (OpenROAD Flow Scripts class) declared in `cfg/pd.yaml`, so place-and-route is an explicit layer after synthesis rather than “just more Yosys.”
-- `cfg/env.yaml` owns environment and tool data, while `cfg/env.sh` is the shell entry point that exports that data.
-- `cfg/ip.yaml` owns IP-specific metadata and the structured output layout under `workdir/`.
-- `cfg/fv.yaml` owns shared formal profiles, solver selection, and reusable formal script selection.
-- `cfg/synth.yaml` owns shared synthesis profiles, reusable script selection, and synthesis-technology metadata.
-- Shared physical-design profiles, backend selection, required tools, required inputs, and planned outputs live in `cfg/pd.yaml`.
-- `tools/` contains implementations. `bin/` contains thin user-facing launchers that are added to `PATH`.
-- Formal-verification collateral should live under `src/fv/`, separate from both `rtl/`, `dv/`, and `syn/`.
-- Shared formal collateral such as reusable SBY scripts and common assumptions should live under `src/fv/common/`.
-- Formal collateral should follow a predictable split: common assumptions/scripts, IP-local environment code, IP-local properties, and IP-local proof wrappers.
-- Shared RTL collateral should live under `src/rtl/common/`, not inside a specific IP tree.
-- Synthesis-specific collateral should live under `src/syn/`, separate from both `rtl/` and `dv/`.
-- Shared synthesis collateral such as generic liberty files and reusable synthesis scripts should live under `src/syn/common/`.
-- IPs select synthesis behavior in `cfg/ip.yaml` via a synth profile, while the shared profile definitions live in `cfg/synth.yaml`.
-- Physical-design collateral should live under `src/pd/`, separate from synthesis source collateral.
-- Shared physical-design collateral should live under `src/pd/common/`.
-- IPs select physical-design behavior in `cfg/ip.yaml` via a PD profile, while the shared profile definitions live in `cfg/pd.yaml`.
-- Source filelists are authored relative to `$MODEL_ROOT`, and the builder generates explicit filelists under `workdir/` for tools like Verilator.
-- DV environments follow a predictable UVM-shaped split: interface, package, generator, driver, monitor, model, scoreboard, coverage, agent, env, tracker, and thin top-level testbench.
+- Spec-driven development: repo-root `wiki/` is the specification surface; see `AGENTS.md` and `.codex/rules/`.
+- YAML is the source of truth: `tools/build/build.yaml`, `cfg/ip.yaml`, `cfg/env.yaml`.
+- `cfg/env.sh` exports environment data from `cfg/env.yaml` for Git Bash.
+- RTL filelists use `$MODEL_ROOT`; the builder writes resolved filelists under `workdir/<tag>/<ip>/filelist/`.
+- Shared RTL headers live under `src/rtl/common/`.
+- DV follows the existing package/env/tb/tests layout under `src/dv/<ip>/`.
 
 ## Quick start
 
-For normal repository usage, bootstrap first:
+Install **PyYAML** (`pip install pyyaml`), **Questa/ModelSim**, and **Quartus** (on `PATH` or set absolute paths in `cfg/env.yaml` / `cfg/env.local.yaml`).
 
 ```sh
-./setup
+. cfg/env.sh
+./build -h
+./build -ip fifo -qa
+./build -ip fifo -lint -compile -test sanity -tag dev1
+./build -ip fifo -regress level_0 -tag dev1
+./build -ip fifo -fpga -tag q1
 ```
 
-Then invoke the builder through the standard repo launcher:
-
-```sh
-./build -ip fifo -compile
-./build -ip fifo -lint
-./build -ip counter -fv
-./build -ip fifo -synth
-./build -ip fifo -pd
-./build -ip fifo -pd -pd-exec
-./build -ip fifo -test sanity
-./build -ip fifo -regress level_0
-./build -ip fifo -lint -fv -synth -regress level_2
-./build -ip counter -compile -test sanity
-```
-
-To browse saved waveform runs:
+Waveforms (optional GTKWave):
 
 ```sh
 ./build -debug
 ```
 
-That mode lists saved VCD-backed runs under `workdir/`, sorted by time, and lets you pick one to open in GTKWave.
-
-The repo-root `./build` launcher sources `cfg/env.sh` automatically, then delegates to `bin/build`. Source `. cfg/env.sh` directly only when you want the shell environment for manual tool use outside the standard repo entrypoints. The builder accepts multiple discipline flags in one command and resolves step dependencies automatically. Shared prerequisites such as generated filelists and compile run once per invocation when needed. `-debug` must be used by itself, and `-test` and `-regress` remain mutually exclusive.
-
-For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint first:
+`./build` sources `cfg/env.sh` then runs `tools/build/build.py`. `-debug` must be used alone; `-test` and `-regress` are mutually exclusive.
 
 ```sh
 ./setup
 ./setup --check
 ```
 
-`./setup` installs the required open-source toolchain from the YAML-defined bootstrap contract in `cfg/env.yaml`, including Verilator, Yosys, SBY, GTKWave, and the formal solver dependencies. `./setup --check` verifies the installed toolchain without reinstalling it.
-
-The physical-design backend is **declared** (OpenROAD-class P&R) but **not** installed by `./setup`; that split is intentional so the default bootstrap and CI gate stay on the RTL-through-synth toolchain. `./build -ip fifo -pd` runs the synthesis prerequisite and writes a foundation PD review package: floorplan/placed/routed DEF, final DEF, deterministic foundation GDSII, SPEF limitation file, timing/utilization/DRC/LVS reports, SVG/PNG layout images, and `pd_summary.yaml`. **`./build -ip fifo -pd -pd-exec`** adds an **optional local** gate that an `openroad` binary exists at the preferred path in `cfg/env.yaml`; it does not run full ORFS from the builder yet. Wiring real place-and-route and PDK-backed signoff remains tracked as physical-design work; see the [software stack](wiki/flows-methods-phylosophy/software-stack.md) page for rationale.
-
-Repository structure can be validated explicitly per IP:
-
-```sh
-./build -ip fifo -qa
-./build -ip counter -qa -lint -fv -synth -regress level_2
-```
-
-The QA flow checks that the IP structure, config references, source filelists, mirrored wiki pages, and a deterministic subset of the repository style rules match the repository contract before deeper discipline flows run. Each QA run emits a `workdir/<tag>/<ip>/qa/qa_report.txt` artifact listing the checked handwritten sources and any violations.
+`./setup` prints Windows-oriented notes; `./setup --check` runs `version_cmd` for each tool in `cfg/env.yaml` (use `--ci` to relax failures on CI where EDA tools are absent).
 
 ## CI
 
-- GitHub Actions uses the same `build` entrypoint as local development. CI does not invent a separate flow outside the repository builder.
-- The main CI gate lives in [.github/workflows/ci.yml](.github/workflows/ci.yml).
-- Spec-reference enforcement runs as separate [issue-reference](.github/workflows/issue-reference.yml) and [pr-reference](.github/workflows/pr-reference.yml) workflows so issue checks and PR checks stay visible without skipped jobs.
-- PR review enforcement also runs through [pr-agent](.github/workflows/pr-agent.yml), configured by the repo-root [.pr_agent.toml](.pr_agent.toml).
-- CodeRabbit is configured from the repo-root [.coderabbit.yaml](.coderabbit.yaml) and runs alongside PR-Agent on this public repository through the CodeRabbit GitHub App.
-- The current CI uses one `gate` job on `ubuntu-latest`.
-- That job uses the same repo bootstrap entrypoint as local development, then runs two explicit builder invocations: one for `fifo` and one for `counter`. Neither invocation includes `-pd` or `-pd-exec`; **Tier 1** (see [software-stack](wiki/flows-methods-phylosophy/software-stack.md)) is the default merge gate until PD is added to CI deliberately.
-- The workflow sources `. cfg/env.sh` and uploads the structured `workdir/` outputs for both IPs as artifacts.
-- PR-Agent is part of the normal PR gate. It runs as a repository-managed GitHub Actions check and is configured by `.pr_agent.toml`.
-- CodeRabbit is also part of the normal PR gate. It runs as the CodeRabbit GitHub App, is configured by `.coderabbit.yaml`, and can block merge both through its required `CodeRabbit` check and through unresolved review conversations.
-- PR-Agent review comments are expected to use a structured `Summary` / `Findings` / `Final status` format so blocking findings are easy to distinguish from informational notes.
-- CodeRabbit is configured with `request_changes_workflow: true` so its review comments can participate directly in the merge-blocking conversation-resolution flow.
-- The repository secret used by PR-Agent is `OPENAI_KEY`, and the action should stay pinned to an explicit upstream release instead of floating on `@main`.
-- The repository also pins PR-Agent model selection in `.pr_agent.toml`: `gpt-5.4-2026-03-05` with fallback `o4-mini` and `reasoning_effort = "high"`.
-- GitHub-hosted runners work with no repo-side manual setup beyond enabling Actions. Self-hosted runner registration, labels, and machine provisioning are manual GitHub/repo administration tasks outside the repository tree.
-- CodeRabbit itself is installed as a GitHub App rather than a repo-authored Actions workflow, while PR-Agent is a repo-authored GitHub Actions workflow. That difference is intentional and is part of the normal gate design.
-- The GitHub Wiki mirror is published on demand through the repo-local `.codex/skills/update-wiki/` skill. The script clones `*.wiki.git`, replaces the clone content with the local `wiki/` tree, pushes changed pages, and removes the temporary clone. Entry point: [update-wiki.py](.codex/skills/update-wiki/scripts/update-wiki.py). Compatibility wrapper: [`bin/wiki-publish`](bin/wiki-publish).
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on **windows-latest**: Python syntax check and `build.py -h`. Full Questa/Quartus runs are expected on **developer machines** with tools installed.
+- PR-Agent and CodeRabbit workflows are unchanged; see `.pr_agent.toml` and `.coderabbit.yaml`.
+- Wiki publish skill: [.codex/skills/update-wiki/](.codex/skills/update-wiki/).
 
 ## Current flow
 
-- Compile uses Verilator through the YAML-defined build flow in `tools/build/build.yaml`.
-- `tools/build/build.yaml` is organized as declarative `targets` and `steps`.
-- Targets declare root steps, tool requirements, optional selectors, and target-local context overlays.
-- Steps declare `depends_on`, commands or actions, display names, and review artifacts.
-- The Python builder resolves the selected targets, computes the dependency graph from `depends_on`, and runs independent disciplines in parallel when they do not depend on one another.
-- The builder also provides a QA target so repository contracts can be checked explicitly before larger flows run.
-- RTL lint uses Verilator `--lint-only` through the YAML-defined build flow in `tools/build/build.yaml`.
-- Formal verification uses SBY through the YAML-defined build flow in `tools/build/build.yaml`.
-- The current formal flow is selected through `cfg/fv.yaml`.
-- Formal profiles are allowed to differ per IP. Simple control IPs can use full `prove`, while stateful data-path IPs can use bounded safety profiles until stronger proofs are practical.
-- Synthesis uses Yosys through the YAML-defined build flow in `tools/build/build.yaml`.
-- The current synthesis flow is selected through `cfg/synth.yaml`.
-- The active shared synth profile uses a vendored generic liberty for FF legalization and a generic CMOS gate mapping path with a delay target.
-- IP-level synthesis constraints are declared in `cfg/ip.yaml` so clock, reset, and IO timing intent have a stable config home before technology-specific SDC handling is added.
-- The current synthesis `check` report is informational. It is captured as a run artifact, but it is not yet a hard signoff gate because the generic mapped flow still emits Yosys-level structural warnings that need a richer technology model to resolve cleanly.
-- Tests and regressions are selected from YAML definitions under `src/dv/<ip>/code/tests/` and `src/dv/<ip>/regressions/`.
-- Each simulation run writes structured collateral under `workdir/<tag>/<ip>/...`.
-- Test outputs include at least a simulation log, a tracker JSON file, and a VCD waveform when waveform dumping is enabled in the environment config.
-- Lint-specific collateral and waiver files live under `src/rtl/<ip>/lint/`, while lint run outputs go under `workdir/<tag>/<ip>/lint/`.
-- Shared formal source collateral lives under `src/fv/common/`, while formal run outputs go under `workdir/<tag>/<ip>/fv/`.
-- Formal outputs include the generated `.sby` file, the SBY run directory, the formal log, and a derived `fv_summary.yaml` artifact for automation.
-- The current formal collateral split is `src/fv/common/assumptions/`, `src/fv/common/scripts/`, `src/fv/<ip>/code/`, `src/fv/<ip>/properties/`, and `src/fv/<ip>/proofs/`.
-- The current `<IP>` formal flow intentionally proves a reduced parameter point for control behavior, which is a standard way to keep bounded proofs tractable on parameterized stateful designs.
-- Shared synthesis source collateral lives under `src/syn/common/`, while synth run outputs go under `workdir/<tag>/<ip>/synth/`.
-- Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, structural schematic DOT/SVG/PNG artifacts, and a derived `synth_summary.yaml` artifact for automation.
-- The schematic SVG/PNG artifacts are synthesized structural connectivity views. They are not physical floorplans, placement views, routed layouts, or timing heatmaps.
-- Physical design uses the YAML-defined build flow in `tools/build/build.yaml` and the profile contract in `cfg/pd.yaml`.
-- The current physical-design flow is a foundation package toward **real P&R**: it declares **OpenROAD Flow Scripts** as the foundation backend (the **Tier 2** toolchain in [software-stack](wiki/flows-methods-phylosophy/software-stack.md)), consumes synthesis outputs, emits deterministic floorplan/IO/timing/placement/CTS/route/final-DEF review artifacts, writes foundation GDSII/SPEF/image collateral, and marks timing/DRC/LVS/extraction as informational until the backend and technology collateral are wired.
+- **Lint:** `vlog -lint` on RTL filelist (`tools/build/build.yaml` → `lint_sim`).
+- **Compile:** `vlib` + `vlog` on full filelist (`compile_sim`).
+- **Test / regress:** `vsim -c` with existing plusargs (`simulate_sim`); outputs under `workdir/<tag>/<ip>/tests/` or `regressions/`.
+- **FPGA:** `-fpga` writes `synth_hw.tcl` under `workdir/.../quartus/` (from `cfg/ip.yaml` `fpga:` and the RTL filelist) and runs `quartus_sh -t synth_hw.tcl` (`execute_flow -compile`). With `-test`/`-regress`, FPGA runs **after** per-test vlog → vsim → review.
+- **QA:** structure, filelists, wiki RTL/DV pages, style rules → `workdir/.../qa/qa_report.txt`.
 
 ## Development workflow
 

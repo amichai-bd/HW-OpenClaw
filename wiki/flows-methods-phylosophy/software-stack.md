@@ -1,57 +1,35 @@
 # software stack
 
-This page defines **what tools the repository assumes** and **why the stack is split** the way it is. It is about **intent and boundaries**, not install recipes.
+This page defines **what tools the repository assumes today** and how responsibilities are split. Install recipes live in `AGENTS.md` and `cfg/env.yaml`; this page is **intent and boundaries**.
 
-## Why define the stack explicitly
+## Supported platform
 
-Hardware work here spans disciplines that use **different toolchains**:
+- **Host:** **Windows + Git Bash** (the only first-class environment for `./build` and `./setup`).
+- **Simulation / RTL–DV compile:** **Intel Questa / ModelSim** — `vlib`, `vlog`, `vsim` (declared in `cfg/env.yaml`).
+- **FPGA:** **Intel Quartus Prime** — `quartus_sh` (and related tools on `PATH`); project generation and compile are driven by `./build -fpga`. See [fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology).
 
-- **RTL through synthesis** produces a **logical** view: simulatable SystemVerilog, formal models, and a **mapped netlist** (cells and connectivity).
-- **Physical design** produces a **geometric** view: floorplan, placement, clock tree, routes, layout exchange formats (DEF/GDS), parasitics (SPEF), layout images, and signoff-style reports.
+## Tier 1 — Daily engineering (`./setup` + `./build`)
 
-Those layers depend on each other, but they are **not the same program**. Yosys answers “what gates and wires exist?” OpenROAD-class tools answer “where do they sit on the die, and can they meet timing?” The repository therefore treats **physical place-and-route** as a **declared backend** with its own expectations, instead of pretending synthesis outputs are already “the chip.”
+**Role:** Spec-driven **RTL**, **DV**, **`vlog -lint`**, **`vlib`/`vlog` compile**, **`vsim` tests/regressions**, **`-qa`**, and **optional `-fpga`** when Quartus is installed locally.
 
-Defining the stack in config (`cfg/env.yaml`, `cfg/pd.yaml`) keeps `./setup` and `./build` honest: bootstrap installs what CI and most contributors need daily; PD installs stay explicit until the project wires a supported backend path.
+**Source of truth:** `cfg/env.yaml`, `cfg/ip.yaml`, `tools/build/build.yaml`, `tools/build/build.py`.
 
-## Tier 1 — Repository bootstrap (`./setup`)
+**Typical targets:** `-qa`, `-lint`, `-compile`, `-test`, `-regress`, `-fpga`, `-debug` (GTKWave). CI on GitHub-hosted runners exercises **Python-level checks** only; full EDA runs are **local** with tools on `PATH` or overrides in `cfg/env.local.yaml`.
 
-**Role:** Everything needed for **spec-driven RTL work**, **DV**, **FV**, **lint**, and **Yosys synthesis** on typical Ubuntu-style hosts and GitHub-hosted CI.
+## Tier 2 — (Historical) ASIC-style formal, Yosys synth, OpenROAD PD
 
-**Source of truth:** `cfg/env.yaml` → `environment.bootstrap` and `environment.tools`.
+Formal verification, Yosys-based synthesis scaffolds, and OpenROAD-class physical design were part of an **earlier multi-tool vision**. **`src/fv/`, `src/syn/`, `src/pd/`** and matching wiki trees remain as **historical reference**; they are **not** part of the default `./build` contract today. Do not assume `cfg/fv.yaml`, `cfg/synth.yaml`, or `cfg/pd.yaml` exist in a minimal clone.
 
-**Result:** A predictable environment for `./build` targets such as `-compile`, `-test`, `-regress`, `-fv`, `-synth`, and `-qa`. The main CI gate is built from this tier so pull requests stay fast and reproducible.
+For methodology text that still describes those flows, see the **Historical / legacy** banners on the linked pages from [Home](/amichai-bd/HW-OpenClaw/wiki/Home).
 
-## Tier 2 — Physical-design backend (place-and-route)
-
-**Role:** **Floorplan, placement, CTS, routing**, and the path toward **DEF / GDS / SPEF** and signoff-class reports. This is the **P&R engine** and its ecosystem, not another RTL tool.
-
-**Declared foundation:** **OpenROAD Flow Scripts** (OpenROAD-class backend), as named in `cfg/pd.yaml` and summarized in [physical-design-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology).
-
-**Source of truth:** `cfg/pd.yaml` (profiles, backend kind, planned inputs/outputs) and `cfg/env.yaml` → `manual_tools.openroad` (executable expectation for the wired flow).
-
-**Result today:**
-
-- `./build -ip <ip> -pd` is the **PD entry point**; it depends on synthesis outputs.
-- `./build -ip <ip> -pd -pd-exec` is an **optional local** check that an `openroad` binary exists at the preferred path; it is **not** part of the default CI gate.
-- The builder emits **deterministic foundation review collateral** and a **PD summary** aligned with the declared backend contract.
-- Until the external backend is installed and integrated, the flow marks GDS/SPEF/timing/DRC/LVS/extraction outputs as foundation or informational rather than PDK-backed signoff.
-
-**CI today:** The default PR gate exercises **Tier 1** only. Adding Tier 2 to CI is a separate decision (machine size, caching, container), not implied by the current workflow.
-
-## How the pieces connect
+## How the active pieces connect
 
 ```text
-RTL / DV / FV
-  →  ./setup (Tier 1)
-  →  ./build … -compile -fv -synth …
-  →  mapped netlist + PD constraints
-  →  ./build … -pd
-  →  PD backend (Tier 2: OpenROAD-class P&R)
-  →  DEF / GDS / SPEF / reports (as wired)
+RTL + DV  →  ./setup (tools check)  →  ./build -lint -compile -test …
+                                    →  ./build -fpga  (Quartus, RTL from generated filelists)
 ```
 
 ## Related pages
 
-- [physical-design methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology)
-- [builder methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
-- [synthesis methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/synthesis-methodology)
+- [fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology)
+- [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
