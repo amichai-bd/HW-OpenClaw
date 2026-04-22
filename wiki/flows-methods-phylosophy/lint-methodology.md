@@ -1,5 +1,7 @@
 # lint methodology
 
+**Active tooling:** `./build -lint` runs **Questa `vlog -lint`** on the per-IP RTL filelist (Windows + Git Bash). This is **not** a Verilator flow. See `AGENTS.md` and [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack).
+
 Lint is part of the RTL discipline contract.
 
 - lint collateral should live next to the RTL under `src/rtl/<ip>/lint/`

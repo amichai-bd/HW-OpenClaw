@@ -3,62 +3,23 @@ targets:
     root_steps:
       - lint
     tool_requirements:
-      - verilator
+      - vlib
+      - vlog
     context:
       run_dir: "{lint_out_dir}"
       log_file: "{lint_log}"
     review_files:
       - "{ip_root}"
 
-  fv:
-    root_steps:
-      - fv
-    tool_requirements:
-      - sby
-      - yosys
-      - "{fv_solver}"
-    context:
-      run_dir: "{fv_out_dir}"
-      log_file: "{fv_log}"
-    review_files:
-      - "{ip_root}"
-
-  synth:
-    root_steps:
-      - synth
-    tool_requirements:
-      - yosys
-      - name: dot
-        when: "{synth_visualization_enabled}"
-    context:
-      run_dir: "{synth_out_dir}"
-      log_file: "{synth_log}"
-    review_files:
-      - "{ip_root}"
-
-  pd:
-    root_steps:
-      - pd
-    tool_requirements:
-      - yosys
-      - name: dot
-        when: "{synth_visualization_enabled}"
-    context:
-      run_dir: "{pd_out_dir}"
-      log_file: "{pd_log}"
-    review_files:
-      - "{pd_log}"
-      - "{pd_summary_yaml}"
-      - "{pd_layout_png}"
-
   compile:
     root_steps:
       - compile
     tool_requirements:
-      - verilator
+      - vlib
+      - vlog
     context:
       run_dir: "{compile_dir}"
-      log_file: "{output_layout.compile_log}"
+      log_file: "{compile_log}"
     review_files:
       - "{ip_root}"
 
@@ -66,7 +27,9 @@ targets:
     root_steps:
       - simulate
     tool_requirements:
-      - verilator
+      - vlib
+      - vlog
+      - vsim
     selector:
       kind: test
       param: test_name
@@ -78,7 +41,9 @@ targets:
     root_steps:
       - regress
     tool_requirements:
-      - verilator
+      - vlib
+      - vlog
+      - vsim
     selector:
       kind: regression
       param: regress_name
@@ -88,9 +53,21 @@ targets:
     review_files:
       - "{ip_root}"
 
+  fpga:
+    root_steps:
+      - quartus_compile
+    tool_requirements:
+      - quartus_sh
+    context:
+      run_dir: "{quartus_out_dir}"
+      log_file: "{quartus_log}"
+    review_files:
+      - "{quartus_log}"
+
   qa:
     root_steps:
       - qa
+    tool_requirements: []
     context:
       run_dir: "{qa_out_dir}"
       log_file: "{qa_report}"
@@ -106,7 +83,6 @@ steps:
     review_files:
       - "{generated_all_filelist}"
       - "{generated_rtl_filelist}"
-      - "{generated_fv_filelist}"
     commands:
       - action: prepare_filelists
 
@@ -117,86 +93,42 @@ steps:
     review_files:
       - "{lint_log}"
     commands:
-      - cmd: mkdir -p {lint_out_dir}
-      - cmd: cd {lint_out_dir} && {verilator_exe} --lint-only -Wall --top-module {rtl_module} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_rtl_filelist} {lint_waiver}
-        log: "{lint_log}"
-
-  fv:
-    display_name: "fv {ip}"
-    depends_on:
-      - prepare
-    review_files:
-      - "{fv_log}"
-      - "{fv_summary_yaml}"
-      - "{fv_run_dir}/status"
-    commands:
-      - action: prepare_fv_config
-      - cmd: mkdir -p {fv_out_dir}
-      - cmd: cd {fv_out_dir} && {sby_exe} -f -d {fv_run_dir} {generated_fv_config}
-        log: "{fv_log}"
-      - action: prepare_fv_summary
-
-  synth:
-    display_name: "synth {ip}"
-    depends_on:
-      - prepare
-    review_files:
-      - "{synth_log}"
-      - "{synth_summary_yaml}"
-      - path: "{synth_schematic_png}"
-        when: "{synth_visualization_enabled}"
-      - "{synth_netlist}"
-    commands:
-      - action: prepare_synth_script
-      - cmd: mkdir -p {synth_out_dir}
-      - cmd: cd {synth_out_dir} && {yosys_exe} -s {generated_synth_script}
-        log: "{synth_log}"
-      - action: render_synth_schematic_png
-      - action: prepare_synth_summary
-
-  pd:
-    display_name: "pd {ip}"
-    depends_on:
-      - synth
-    review_files:
-      - "{pd_log}"
-      - "{pd_summary_yaml}"
-      - "{pd_layout_png}"
-    commands:
-      - cmd: mkdir -p {pd_out_dir}
-      - action: prepare_pd_floorplan
-      - action: prepare_pd_placement
-      - action: prepare_pd_cts
-      - action: prepare_pd_route
-      - action: prepare_pd_reports
-      - action: gate_pd_exec_backend
-      - action: prepare_pd_signoff_artifacts
-      - action: prepare_pd_summary
+      - action: lint_sim
 
   compile:
     display_name: "compile {ip}"
     depends_on:
       - prepare
     review_files:
-      - "{output_layout.compile_log}"
-      - "{binary_path}"
+      - "{compile_log}"
     commands:
-      - cmd: mkdir -p {compile_dir}
-      - cmd: cd {compile_dir} && {verilator_exe} -Wall --binary --top-module {top_module} {verilator_trace_flag} -Wno-BLKSEQ -Wno-UNUSEDSIGNAL -f {generated_all_filelist}
-        log: "{output_layout.compile_log}"
+      - action: compile_sim
 
   simulate:
     display_name: "test {test_name} {ip}"
     depends_on:
       - compile
     review_files:
+      - "{run_dir}/vlog.log"
       - "{log_file}"
       - "{tracker_path}"
       - "{wave_path}"
     commands:
-      - cmd: mkdir -p {run_dir}
-      - cmd: cd {run_dir} && {binary_path} +test={test_name} +tracker_path={tracker_path} +wave_enable={wave_enable} +wave_path={wave_path}
-        log: "{log_file}"
+      - action: test_phase_vlog
+      - action: simulate_sim
+      - action: review_test_outputs
+
+  quartus_compile:
+    display_name: "quartus compile {ip}"
+    depends_on:
+      - prepare
+    review_files:
+      - "{quartus_log}"
+    commands:
+      - action: ensure_dir
+        path: "{quartus_out_dir}"
+      - action: write_quartus_tcl
+      - action: run_quartus_sh_compile
 
   regress:
     display_name: "regress {regress_name} {ip}"

@@ -26,11 +26,11 @@ The major source disciplines are intentionally separated:
 - `src/dv/`
   dynamic verification
 - `src/fv/`
-  formal verification
+  formal verification (**historical**; not wired into the default `./build` stack)
 - `src/syn/`
-  synthesis
+  synthesis collateral (**historical**; active FPGA flow is Quartus under `./build -fpga`)
 - `src/pd/`
-  physical design
+  physical design (**historical**; no OpenROAD gate in the default builder)
 
 This separation matters because each discipline has:
 
@@ -45,9 +45,9 @@ The wiki mirrors the `src/` structure at the top level:
 
 - `wiki/rtl/` mirrors `src/rtl/`
 - `wiki/dv/` mirrors `src/dv/`
-- `wiki/fv/` mirrors `src/fv/`
-- `wiki/syn/` mirrors `src/syn/`
-- `wiki/pd/` mirrors `src/pd/`
+- `wiki/fv/` mirrors `src/fv/` (historical spec mirror)
+- `wiki/syn/` mirrors `src/syn/` (historical)
+- `wiki/pd/` mirrors `src/pd/` (historical)
 
 This does not mean every wiki page must be equally detailed.
 It means every source area has an obvious specification home.

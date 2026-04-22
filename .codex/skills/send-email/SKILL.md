@@ -26,7 +26,7 @@ Never commit AgentMail secrets.
 The script reads credentials in this order:
 
 1. `AGENTMAIL_API_KEY` and optional `AGENTMAIL_INBOX` from the environment.
-1. `~/.openclaw/secrets/agentmail.env`.
+2. `~/.openclaw/secrets/agentmail.env`.
 
 Expected local secret file format:
 
@@ -40,7 +40,7 @@ AGENTMAIL_INBOX='codex-amichaibd@agentmail.to'
 Send plain text:
 
 ```sh
-python3 .codex/skills/send-email/scripts/send-agentmail.py \
+python .codex/skills/send-email/scripts/send-agentmail.py \
   --to amichaibd@gmail.com \
   --subject "Subject" \
   --text "Body"
@@ -49,7 +49,7 @@ python3 .codex/skills/send-email/scripts/send-agentmail.py \
 Send from a file:
 
 ```sh
-python3 .codex/skills/send-email/scripts/send-agentmail.py \
+python .codex/skills/send-email/scripts/send-agentmail.py \
   --to amichaibd@gmail.com \
   --subject "Subject" \
   --text-file path/to/body.txt
@@ -58,7 +58,7 @@ python3 .codex/skills/send-email/scripts/send-agentmail.py \
 Attachments (base64 per AgentMail API; repeat `--attach`):
 
 ```sh
-python3 .codex/skills/send-email/scripts/send-agentmail.py \
+python .codex/skills/send-email/scripts/send-agentmail.py \
   --to amichaibd@gmail.com \
   --subject "Subject with files" \
   --text "See attachments." \

@@ -1,4 +1,5 @@
 workdir/
+cfg/env.local.yaml
 __pycache__/
 *.pyc
 

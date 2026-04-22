@@ -2,7 +2,17 @@
 
 This wiki is the version-controlled specification surface of the repository.
 
-The repository is intended to be:
+## Active stack (read this first)
+
+The **supported** hardware flow is:
+
+- **Windows + Git Bash**
+- **Questa / ModelSim** for RTL/DV: `vlib`, `vlog`, `vsim` (`-lint`, `-compile`, `-test`, `-regress`)
+- **Intel Quartus** for FPGA: `./build -fpga` (Tcl + `quartus_sh`, logs under `workdir/.../quartus/`)
+
+Authoritative overview: **`AGENTS.md`** at the repo root, plus [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack), [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology), and [fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology).
+
+The repository is still intended to be:
 
 - spec-driven
 - GitHub-flow-driven
@@ -22,6 +32,8 @@ If you are new to the repository, read these first:
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
 - [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
+- [fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology)
+- [lint methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/lint-methodology)
 - [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills) — repo-local `.codex/skills/` (wiki publish, AgentMail)
 
 For a fresh clone:
@@ -33,14 +45,23 @@ If you are changing code in a discipline, jump directly to:
 
 - [rtl overview](/amichai-bd/HW-OpenClaw/wiki/rtl/rtl)
 - [dv overview](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
-- [fv overview](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
-- [syn overview](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
-- [pd overview](/amichai-bd/HW-OpenClaw/wiki/pd/pd)
+
+### Historical wiki areas (not in default `./build`)
+
+These mirror **legacy or reference** trees under `src/` and describe flows **not** wired into the current Windows + Questa + Quartus builder:
+
+- [fv overview](/amichai-bd/HW-OpenClaw/wiki/fv/fv) — formal (historical)
+- [syn overview](/amichai-bd/HW-OpenClaw/wiki/syn/syn) — Yosys-era synthesis docs (historical)
+- [pd overview](/amichai-bd/HW-OpenClaw/wiki/pd/pd) — OpenROAD-era PD docs (historical)
 
 If you are looking for rules rather than structure, use:
 
 - [rtl coding style](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/rtl-coding-style)
 - [dv methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/dv-methodology)
+- [lint methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/lint-methodology)
+
+Formal, ASIC synthesis, and physical-design **methodology pages** remain for reference and are labeled **legacy** on each page:
+
 - [formal methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/formal-methodology)
 - [synthesis methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/synthesis-methodology)
 - [physical-design methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology)
@@ -102,7 +123,10 @@ To compare with what the skill would publish from this `wiki/` tree, run `./bin/
 
 - [rtl](/amichai-bd/HW-OpenClaw/wiki/rtl/rtl)
 - [dv](/amichai-bd/HW-OpenClaw/wiki/dv/dv)
+- [flows methods philosophy](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/flows-methods-phylosophy)
+
+Legacy / reference mirrors (see banners on each):
+
 - [fv](/amichai-bd/HW-OpenClaw/wiki/fv/fv)
 - [syn](/amichai-bd/HW-OpenClaw/wiki/syn/syn)
 - [pd](/amichai-bd/HW-OpenClaw/wiki/pd/pd)
-- [flows methods philosophy](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/flows-methods-phylosophy)

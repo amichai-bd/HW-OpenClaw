@@ -78,7 +78,7 @@ A DV change should be reviewable in terms of:
 
 If that is hard to answer, the DV structure is probably drifting.
 
-Sequential helper logic in DV and FV support code should follow the same repository style as RTL:
+Sequential helper logic in DV (and any **legacy** formal-support code, if present) should follow the same repository style as RTL:
 
 - use `always_ff` and `always_comb`
 - keep non-blocking assignments inside approved macros only

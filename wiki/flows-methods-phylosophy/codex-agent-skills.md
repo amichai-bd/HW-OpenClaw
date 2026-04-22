@@ -8,8 +8,8 @@ These are **not** CI steps. They run only when a human or agent explicitly invok
 
 | Skill | Purpose | Entry point |
 | ----- | ------- | ----------- |
-| **update-wiki** | Publish the version-controlled `wiki/` tree to the GitHub Wiki mirror (`*.wiki.git`). | `python3 .codex/skills/update-wiki/scripts/update-wiki.py` |
-| **send-email** | Send project email from the repo-owned AgentMail inbox (reports, summaries, notifications). | `python3 .codex/skills/send-email/scripts/send-agentmail.py` |
+| **update-wiki** | Publish the version-controlled `wiki/` tree to the GitHub Wiki mirror (`*.wiki.git`). | `python .codex/skills/update-wiki/scripts/update-wiki.py` |
+| **send-email** | Send project email from the repo-owned AgentMail inbox (reports, summaries, notifications). | `python .codex/skills/send-email/scripts/send-agentmail.py` |
 
 Compatibility wrapper for wiki publish: `./bin/wiki-publish` (delegates to the update-wiki script).
 

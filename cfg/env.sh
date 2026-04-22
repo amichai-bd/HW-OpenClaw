@@ -11,7 +11,7 @@ if [ ! -f "$_codex_env_yaml" ]; then
 fi
 
 eval "$(
-    REPO_ROOT="$_codex_repo_root" ENV_YAML="$_codex_env_yaml" python3 - <<'PY'
+    REPO_ROOT="$_codex_repo_root" ENV_YAML="$_codex_env_yaml" python - <<'PY'
 import os
 import re
 import shlex

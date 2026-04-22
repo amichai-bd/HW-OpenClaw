@@ -4,14 +4,17 @@ Implementations invoked by repo entrypoints (`./build`, `./setup`).
 
 ## Build orchestration
 
-- **`tools/build/build.yaml`** — declarative targets and steps (dependency graph, artifacts).
+- **`tools/build/build.yaml`** — declarative targets and steps (Questa lint/compile/sim, Quartus smoke, QA).
 - **`tools/build/build.py`** — executor for that graph.
-- **`tools/misc/`** — optional debugging utilities that are not normal user-facing entrypoints.
+- **`tools/misc/`** — optional utilities.
 
-The builder is discipline-agnostic policy-wise: RTL, DV, FV, synthesis, and physical design are all **targets** driven from YAML plus `cfg/*.yaml`, not separate ad hoc scripts.
+## Stack
 
-## Software stack context
+- **Windows + Git Bash** only for the supported flow.
+- **Questa/ModelSim:** `vlib`, `vlog`, `vsim` (paths in `cfg/env.yaml`).
+- **Intel Quartus:** `quartus_map` (and future project flows under `-fpga`).
+- Override tools via **`HW_OPENCLAW_ENV_FILE`** or **`cfg/env.local.yaml`**.
 
-Tool expectations and bootstrap scope live in **`cfg/env.yaml`** (what `./setup` installs vs what stays manual). Physical-design backends are **`cfg/pd.yaml`** plus `manual_tools` in `cfg/env.yaml`.
+## Setup
 
-For **why** the stack splits **RTL-through-synth** from **P&R / OpenROAD-class** tools, see the wiki page [software-stack](../wiki/flows-methods-phylosophy/software-stack.md).
+`./setup` documents optional Windows prerequisites (Python, PyYAML); EDA tools are installed separately (Intel FPGA suite).

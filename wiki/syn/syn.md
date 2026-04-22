@@ -1,5 +1,7 @@
 # syn
 
+> **Historical / legacy:** Active implementation mapping for RTL is **Intel Quartus** via `./build -fpga` (see [fpga-quartus-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/fpga-quartus-methodology)). This wiki section documents **Yosys-era / ASIC-style** synthesis collateral under `src/syn/` as a **reference mirror**, not the default builder path.
+
 This section specifies synthesis collateral under `src/syn/`.
 
 The repository treats synthesis as its own discipline rather than an extension of RTL or DV.

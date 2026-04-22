@@ -12,17 +12,17 @@ The source of truth is always the repo-root `wiki/` directory. The GitHub Wiki i
 ## Workflow
 
 1. Make sure the local branch contains the intended `wiki/` content.
-1. Run a dry run first:
+2. Run a dry run first:
 
 ```sh
-python3 .codex/skills/update-wiki/scripts/update-wiki.py --dry-run --output /tmp/hw-openclaw-wiki-preview
+python .codex/skills/update-wiki/scripts/update-wiki.py --dry-run --output /tmp/hw-openclaw-wiki-preview
 ```
 
-1. Inspect the generated preview if the change is non-trivial.
-1. Publish:
+3. Inspect the generated preview if the change is non-trivial.
+4. Publish:
 
 ```sh
-python3 .codex/skills/update-wiki/scripts/update-wiki.py
+python .codex/skills/update-wiki/scripts/update-wiki.py
 ```
 
 ## Behavior
