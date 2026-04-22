@@ -1,4 +1,294 @@
+# HW-OpenClaw build policy — stack, tools, flows, and commands live here.
+# build.py loads this file and executes: graph, templates, argv, and generic actions only.
+
+build_schema: 2
+
+# Default machine env (paths, tool exes). Override: HW_OPENCLAW_ENV_FILE, cfg/env.local.yaml
+env_input:
+  path: cfg/env.yaml
+  root_key: environment
+  require_root_keys: [home_dir, model_root, tools, simulation]
+
+# Map env.environment.tools.<name> into build context keys (no tool names hardcoded in Python).
+tools:
+  python3:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      python3_exe: { from_field: exe, resolve_templates: true }
+  vlib:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      vlib_exe: { from_field: exe, resolve_templates: true }
+  vlog:
+    require_fields: [exe, version, version_cmd, extra_flags]
+    exports:
+      vlog_exe: { from_field: exe, resolve_templates: true }
+      vlog_extra_flags: { from_field: extra_flags, as_argv_word_list: true }
+  vsim:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      vsim_exe: { from_field: exe, resolve_templates: true }
+  quartus_map:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      quartus_map_exe: { from_field: exe, resolve_templates: true }
+  quartus_sh:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      quartus_sh_exe: { from_field: exe, resolve_templates: true }
+  gtkwave:
+    require_fields: [exe, version, version_cmd]
+    exports:
+      gtkwave_exe: { from_field: exe, resolve_templates: true }
+
+derived_context:
+  - path: simulation.waveform.enabled
+    as: waveform_enabled
+    transform: bool
+  - path: simulation.waveform.format
+    as: waveform_format
+
+# When multiple CLI targets run together, extra completion order (beyond step graph).
+target_ordering:
+  edges:
+    - when_all_requested: [fpga, test]
+      add_edge: { before: fpga, after: test }
+    - when_all_requested: [fpga, regress]
+      add_edge: { before: fpga, after: regress }
+
+discovery:
+  test_yaml_top_key: test
+  regression_yaml_top_key: regression
+
+# Maps single-test vs regression runs to output_layout template keys (ip.yaml).
+test_run_paths:
+  test:
+    layout:
+      run_dir: test_out_dir
+      log_file: test_log
+      tracker_path: test_tracker
+      wave_path: test_wave
+  regress:
+    layout:
+      run_dir: regression_test_out_dir
+      log_file: regression_test_log
+      tracker_path: regression_test_tracker
+      wave_path: regression_test_wave
+
+# Plusarg-friendly paths (forward slashes) — any listed context key gets a *_sh sibling.
+posix_path_exports:
+  - { from: tracker_path, as: tracker_path_sh }
+  - { from: wave_path, as: wave_path_sh }
+
+# Defaults when ip.yaml omits an `fpga:` block (merged in get_ip_data).
+ip_defaults:
+  fpga:
+    family: "MAX 10"
+    device: 10M50DAF484C7G
+    revision_template: "{ip}_fpga"
+    top_entity_from: rtl_module
+
+parameters:
+  questa:
+    work_library: work
+    vlog_std_flag: "-sv"
+    vsim_batch_flag: "-c"
+    vsim_do: "run -all; quit"
+  quartus:
+    tcl_script: synth_hw.tcl
+    execute_flow_arg: "-compile"
+
+command_templates:
+  vlib_init:
+    argv: ["{vlib_exe}", "{b_questa_work_library}"]
+  vlog_lint:
+    argv:
+      - "{vlog_exe}"
+      - "-lint"
+      - "{b_questa_vlog_std_flag}"
+      - "-work"
+      - "{b_questa_work_library}"
+      - "-f"
+      - "{generated_rtl_filelist}"
+  vlog_compile_all:
+    argv:
+      - "{vlog_exe}"
+      - "{b_questa_vlog_std_flag}"
+      - "-work"
+      - "{b_questa_work_library}"
+      - "-f"
+      - "{generated_all_filelist}"
+    append_argv_from_context: vlog_extra_flags
+  vlog_test_phase:
+    argv:
+      - "{vlog_exe}"
+      - "{b_questa_vlog_std_flag}"
+      - "-work"
+      - "{b_questa_work_library}"
+      - "-f"
+      - "{generated_all_filelist}"
+    append_argv_from_context: vlog_extra_flags
+  vsim_test:
+    argv:
+      - "{vsim_exe}"
+      - "{b_questa_vsim_batch_flag}"
+      - "-work"
+      - "{b_questa_work_library}"
+      - "{tb_top_module}"
+      - "-do"
+      - "{b_questa_vsim_do}"
+      - "+test={test_name}"
+      - "+tracker_path={tracker_path_sh}"
+      - "+wave_enable={wave_enable}"
+      - "+wave_path={wave_path_sh}"
+  quartus_sh_run:
+    argv: ["{quartus_sh_exe}", "-t", "{b_quartus_tcl_script}"]
+    cwd: "{quartus_out_dir}"
+    log: "{quartus_log}"
+    log_mode: overwrite
+    failure_triage_profile: quartus
+
+filelist_consumers:
+  quartus_rtl:
+    read_filelist_key: generated_rtl_filelist
+    incdir_prefix: "+incdir+"
+    source_suffixes: [".sv", ".svh", ".v", ".vh"]
+    tcl_brace_paths: true
+
+text_templates:
+  # Use <<context_key>> for substitutions (Tcl uses { } heavily; avoid Python str.format).
+  quartus_synth_tcl: |
+    # Auto-generated from tools/build/build.yaml (text_templates.quartus_synth_tcl)
+    # IP=<<ip>> revision=<<fpga_revision>> top=<<fpga_top_entity>>
+    load_package flow
+    package require ::quartus::project
+    set script_dir [file normalize [file dirname [info script]]]
+    cd $script_dir
+    set PROJECT_NAME {<<fpga_revision>>}
+    set search_paths [list]
+    set hdl_files [list]
+    <<quartus_search_paths_tcl_block>>
+    <<quartus_hdl_files_tcl_block>>
+    if {[llength $search_paths] == 0} {
+      lappend search_paths $script_dir
+    }
+    if {[catch {project_new $PROJECT_NAME -revision $PROJECT_NAME -overwrite} err]} {
+      post_message -type error "project_new failed: $err"
+      exit 2
+    }
+    set_global_assignment -name FAMILY {<<fpga_family>>}
+    set_global_assignment -name DEVICE {<<fpga_device>>}
+    set_global_assignment -name TOP_LEVEL_ENTITY {<<fpga_top_entity>>}
+    set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+    foreach p $search_paths {
+      set_global_assignment -name SEARCH_PATH $p
+    }
+    foreach f $hdl_files {
+      set_global_assignment -name SYSTEMVERILOG_FILE $f
+    }
+    if {[catch {execute_flow __BUILD_FLOW_ARG__} err]} {
+      post_message -type error "execute_flow __BUILD_FLOW_ARG__ failed: $err"
+      project_close
+      exit 1
+    }
+    project_close
+
+# Engine replaces __BUILD_FLOW_ARG__ with b_quartus_execute_flow_arg (e.g. -compile).
+
+log_triage_profiles:
+  quartus:
+    log_context_key: quartus_log
+    out_dir_context_key: quartus_out_dir
+    revision_context_key: fpga_revision
+    report_suffixes: [fit, sta, map, flow]
+    line_pattern: "(?i)(\\*\\*\\s*error|\\berror\\s*\\(|^error:|\\bfatal\\b|\\bsevere\\b|unsuccessful|segmentation fault)"
+    max_matching_lines: 28
+    log_grep_hint: "\\*\\* Error|Error:|ERROR:|FATAL|unsuccessful"
+
+log_tail_review:
+  sections:
+    - label: vlog.log
+      path: "{run_dir}/vlog.log"
+      tail_lines: 25
+    - label: simulate.log
+      path: "{log_file}"
+      tail_lines: 40
+  summaries:
+    - "review ip={ip} test={test_name} vlog_log={run_dir}/vlog.log sim_log={log_file}"
+    - "waveform={wave_path}"
+    - "tracker={tracker_path}"
+
+qa_profile:
+  require_context_keys:
+    - rtl_filelist
+    - rtl_module
+    - dv_filelist
+    - all_filelist
+    - rtl_top
+    - lint_dir
+    - dv_top
+    - tb_top_module
+    - regression_dir
+    - test_dir
+    - qa_report
+  checks:
+    - kind: dirs_exist
+      paths:
+        - "src/rtl/{ip}/code"
+        - "src/rtl/{ip}/lint"
+        - "src/dv/{ip}/code/if"
+        - "src/dv/{ip}/code/pkg"
+        - "src/dv/{ip}/code/env"
+        - "src/dv/{ip}/code/tb"
+        - "src/dv/{ip}/code/tests"
+        - "src/dv/{ip}/filelist"
+        - "src/dv/{ip}/regressions"
+    - kind: files_exist
+      paths:
+        - "{rtl_filelist}"
+        - "{dv_filelist}"
+        - "{all_filelist}"
+        - "{rtl_top}"
+        - "wiki/rtl/{ip}/rtl-{ip}.md"
+        - "wiki/dv/{ip}/dv-{ip}.md"
+        - "wiki/rtl/rtl.md"
+        - "wiki/dv/dv.md"
+        - "wiki/Home.md"
+        - "wiki/flows-methods-phylosophy/repo-structure.md"
+        - "wiki/flows-methods-phylosophy/builder-methodology.md"
+        - "wiki/flows-methods-phylosophy/software-stack.md"
+        - "wiki/flows-methods-phylosophy/fpga-quartus-methodology.md"
+    - kind: filelist_trees_valid
+      context_paths: [rtl_filelist, dv_filelist, all_filelist]
+    - kind: sv_style_scan
+      collect:
+        - { kind: from_filelist, context_key: rtl_filelist }
+        - { kind: glob_sv, root: "src/dv/{ip}/code" }
+        - { kind: glob_sv, root: "src/rtl/common/include", optional: true }
+      allow_nonblocking_assign_in: [macros.svh]
+      patterns:
+        always_plain: "(?<![\\w$])always(?!_(?:comb|ff|latch)\\b)"
+        inline_logic_init: "^\\s*logic\\b[^;]*="
+        nonblocking_assign: "^\\s*[A-Za-z_][\\w$]*(?:\\s*\\[[^]]+\\])?(?:\\s*\\.[A-Za-z_][\\w$]*(?:\\s*\\[[^]]+\\])?)*\\s*<=\\s*.+;"
+
+debug_profile:
+  tool: gtkwave
+  artifact_globs:
+    - "workdir/*/*/tests/*/*.vcd"
+    - "workdir/*/*/regressions/*/*/*.vcd"
+  list_max: 20
+
+selectors:
+  param_to_arg:
+    test_name: test
+    regress_name: regress
+
 targets:
+  debug:
+    root_steps: []
+    tool_requirements:
+      - gtkwave
+
   lint:
     root_steps:
       - lint
@@ -93,7 +383,18 @@ steps:
     review_files:
       - "{lint_log}"
     commands:
-      - action: lint_sim
+      - action: remove_tree
+        path: "{lint_out_dir}/{b_questa_work_library}"
+      - action: truncate_file
+        path: "{lint_log}"
+      - invoke: vlib_init
+        cwd: "{lint_out_dir}"
+        log: "{lint_log}"
+        log_mode: append
+      - invoke: vlog_lint
+        cwd: "{lint_out_dir}"
+        log: "{lint_log}"
+        log_mode: append
 
   compile:
     display_name: "compile {ip}"
@@ -102,7 +403,18 @@ steps:
     review_files:
       - "{compile_log}"
     commands:
-      - action: compile_sim
+      - action: remove_tree
+        path: "{compile_dir}/{b_questa_work_library}"
+      - action: truncate_file
+        path: "{compile_log}"
+      - invoke: vlib_init
+        cwd: "{compile_dir}"
+        log: "{compile_log}"
+        log_mode: append
+      - invoke: vlog_compile_all
+        cwd: "{compile_dir}"
+        log: "{compile_log}"
+        log_mode: append
 
   simulate:
     display_name: "test {test_name} {ip}"
@@ -114,9 +426,16 @@ steps:
       - "{tracker_path}"
       - "{wave_path}"
     commands:
-      - action: test_phase_vlog
-      - action: simulate_sim
-      - action: review_test_outputs
+      - invoke: vlog_test_phase
+        print_summary: "phase=vlog ip={ip} test={test_name}"
+        cwd: "{compile_dir}"
+        log: "{run_dir}/vlog.log"
+        log_mode: overwrite
+      - invoke: vsim_test
+        cwd: "{compile_dir}"
+        log: "{log_file}"
+        log_mode: overwrite
+      - action: log_tail_review
 
   quartus_compile:
     display_name: "quartus compile {ip}"
@@ -127,8 +446,12 @@ steps:
     commands:
       - action: ensure_dir
         path: "{quartus_out_dir}"
-      - action: write_quartus_tcl
-      - action: run_quartus_sh_compile
+      - action: filelist_consumer
+        consumer: quartus_rtl
+      - action: write_text_template
+        template_key: text_templates.quartus_synth_tcl
+        dest: "{quartus_out_dir}/{b_quartus_tcl_script}"
+      - invoke: quartus_sh_run
 
   regress:
     display_name: "regress {regress_name} {ip}"
@@ -137,7 +460,11 @@ steps:
     review_files:
       - "{ip_root}/regressions/{regress_name}"
     commands:
-      - action: run_regression
+      - action: foreach_run_step
+        child_step: simulate
+        items_context_key: selected_tests
+        iterate_param: test_name
+        path_mode: regress
 
   qa:
     display_name: "qa {ip}"

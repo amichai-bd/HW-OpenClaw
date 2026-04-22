@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""YAML-driven FPGA builder: Questa (vlog/vsim) + Intel Quartus. Windows + Git Bash only."""
+"""Generic YAML-driven build engine: loads tools/flows from tools/build/build.yaml."""
 
 from __future__ import annotations
 
@@ -37,6 +37,111 @@ def env_config_path() -> Path:
     return (REPO_ROOT / "cfg" / "env.yaml").resolve()
 
 
+def resolve_env_file_path(build_cfg: dict) -> Path:
+    """Prefer env.local / HW_OPENCLAW_ENV_FILE; else build.yaml env_input.path."""
+    override = os.environ.get("HW_OPENCLAW_ENV_FILE", "").strip()
+    if override:
+        candidate = Path(override)
+        if not candidate.is_file():
+            candidate = (REPO_ROOT / override).resolve()
+        if candidate.is_file():
+            return candidate.resolve()
+    local = REPO_ROOT / "cfg" / "env.local.yaml"
+    if local.is_file():
+        return local.resolve()
+    rel = (build_cfg.get("env_input") or {}).get("path", "cfg/env.yaml")
+    return (REPO_ROOT / rel).resolve()
+
+
+def deep_get(mapping: dict, dotted_path: str):
+    cur: object = mapping
+    for part in dotted_path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            raise BuildError(f"missing path {dotted_path!r} in environment data")
+        cur = cur[part]
+    return cur
+
+
+def env_context_from_root(env: dict) -> dict:
+    """Resolve home_dir/model_root/bin_dir templates (same inputs as legacy get_env_data)."""
+    env_context = dict(env)
+    env_context["repo_root"] = str(REPO_ROOT)
+    env_context["host_home"] = os.environ.get("HOME", str(Path.home()))
+    env_context["home_dir"] = resolve_template_text(str(env["home_dir"]), env_context)
+    env_context["model_root"] = resolve_template_text(str(env["model_root"]), env_context)
+    if isinstance(env.get("bin_dir"), str) and env["bin_dir"].strip():
+        env_context["bin_dir"] = resolve_template_text(str(env["bin_dir"]), env_context)
+    else:
+        env_context["bin_dir"] = str(REPO_ROOT / "bin")
+    return env_context
+
+
+def apply_environment_from_build_cfg(required_tool_names: set[str], build_cfg: dict) -> dict:
+    """Populate context keys from cfg/env.yaml using build.yaml `tools` + `derived_context`."""
+    env_path = resolve_env_file_path(build_cfg)
+    env_root = load_yaml(env_path)
+    root_key = (build_cfg.get("env_input") or {}).get("root_key", "environment")
+    if root_key not in env_root:
+        raise BuildError(f"missing '{root_key}' in {env_path}")
+    env = env_root[root_key]
+    for rk in (build_cfg.get("env_input") or {}).get("require_root_keys", []):
+        require_keys(env, [rk], f"{env_path}::{root_key}")
+    tools_root = env["tools"]
+    if not isinstance(tools_root, dict):
+        raise BuildError(f"'tools' must be a mapping in {env_path}")
+    env_ctx = env_context_from_root(env)
+    out: dict = {
+        "model_root": env_ctx["model_root"],
+    }
+    for entry in build_cfg.get("derived_context", []):
+        require_keys(entry, ["path", "as"], "derived_context entry")
+        raw = deep_get(env, str(entry["path"]))
+        dest = str(entry["as"])
+        xf = entry.get("transform")
+        if xf == "bool":
+            if isinstance(raw, bool):
+                out[dest] = raw
+            else:
+                out[dest] = str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        elif xf in (None, ""):
+            out[dest] = raw
+        else:
+            raise BuildError(f"unknown derived_context transform {xf!r}")
+    tool_defs = build_cfg.get("tools")
+    if not isinstance(tool_defs, dict):
+        raise BuildError("build.yaml must define 'tools' as a mapping")
+    for name in required_tool_names:
+        if name not in tool_defs:
+            raise BuildError(f"tool {name!r} required but missing from build.yaml tools")
+        if name not in tools_root:
+            raise BuildError(f"missing tool {name!r} in {env_path}")
+        tdef = tool_defs[name]
+        if not isinstance(tdef, dict):
+            raise BuildError(f"tools.{name} must be a mapping")
+        cfg = tools_root[name]
+        for field in tdef.get("require_fields", []):
+            require_keys(cfg, [str(field)], f"environment.tools.{name}")
+        exports = tdef.get("exports") or {}
+        if not isinstance(exports, dict):
+            raise BuildError(f"tools.{name}.exports must be a mapping")
+        for ctx_key, spec in exports.items():
+            if not isinstance(spec, dict):
+                raise BuildError(f"tools.{name}.exports.{ctx_key} must be a mapping")
+            require_keys(spec, ["from_field"], f"tools.{name}.exports.{ctx_key}")
+            field = str(spec["from_field"])
+            raw = cfg[field]
+            if spec.get("resolve_templates"):
+                out[str(ctx_key)] = resolve_template_text(str(raw), env_ctx)
+            elif spec.get("as_argv_word_list"):
+                if isinstance(raw, list):
+                    out[str(ctx_key)] = [str(x) for x in raw if str(x).strip()]
+                else:
+                    out[str(ctx_key)] = [t for t in str(raw).split() if t]
+            else:
+                out[str(ctx_key)] = raw
+    return out
+
+
 class BuildError(RuntimeError):
     """Raised when build setup or execution fails."""
 
@@ -62,6 +167,29 @@ def load_yaml(path: Path) -> dict:
     if not isinstance(data, dict):
         raise BuildError(f"expected mapping in {path}")
     return data
+
+
+def flatten_build_parameters(parameters: object, prefix: str = "b") -> dict:
+    """Nested build.yaml `parameters` -> flat keys `b_group_leaf` for {b_group_leaf} templates."""
+    out: dict = {}
+
+    def walk(node: object, parts: list[str]) -> None:
+        if isinstance(node, dict):
+            for key, val in node.items():
+                walk(val, parts + [str(key)])
+            return
+        key = "_".join([prefix] + parts)
+        out[key] = node
+
+    if isinstance(parameters, dict):
+        walk(parameters, [])
+    elif parameters not in (None, {}):
+        raise BuildError("build.yaml 'parameters' must be a mapping when present")
+    return out
+
+
+def merge_build_parameters_into_context(context: dict, build_cfg: dict) -> None:
+    context.update(flatten_build_parameters(build_cfg.get("parameters")))
 
 
 def require_keys(data: dict, required_keys: list[str], context: str) -> None:
@@ -110,7 +238,7 @@ def resolve_tag(requested_tag: str | None, ip_data: dict) -> str:
     return f"{prefix}_{iteration}"
 
 
-def get_ip_data(ip_name: str) -> dict:
+def get_ip_data(ip_name: str, build_cfg: dict) -> dict:
     ip_root = load_yaml(IP_CONFIG)
     require_keys(ip_root, ["model_root_var", "output_layout", "ip"], str(IP_CONFIG))
     output_layout = ip_root["output_layout"]
@@ -172,10 +300,14 @@ def get_ip_data(ip_name: str) -> dict:
     if fpga_cfg is not None and not isinstance(fpga_cfg, dict):
         raise BuildError(f"ip.{ip_name}.fpga must be a mapping when present")
     f = dict(fpga_cfg or {})
-    ip_data["fpga_family"] = str(f.get("family", "MAX 10"))
-    ip_data["fpga_device"] = str(f.get("device", "10M50DAF484C7G"))
-    ip_data["fpga_revision"] = str(f.get("revision", f"{ip_name}_fpga"))
-    ip_data["fpga_top_entity"] = str(f.get("top_entity", ip_data["rtl_module"]))
+    dfp = (build_cfg.get("ip_defaults") or {}).get("fpga") or {}
+    rev_default = format_text(str(dfp.get("revision_template", "{ip}_fpga")), ip_data)
+    top_from = str(dfp.get("top_entity_from", "rtl_module"))
+    top_default = ip_data[top_from] if top_from in ip_data else ip_data["rtl_module"]
+    ip_data["fpga_family"] = str(f.get("family", dfp.get("family", "MAX 10")))
+    ip_data["fpga_device"] = str(f.get("device", dfp.get("device", "10M50DAF484C7G")))
+    ip_data["fpga_revision"] = str(f.get("revision", rev_default))
+    ip_data["fpga_top_entity"] = str(f.get("top_entity", top_default))
     return ip_data
 
 
@@ -195,74 +327,6 @@ def apply_run_paths(ip_data: dict, tag: str) -> dict:
     ip_data["log_file"] = ip_data["compile_log"]
     ip_data["tracker_path"] = ""
     return ip_data
-
-
-def get_env_data(required_tool_names: set[str]) -> dict:
-    env_path = env_config_path()
-    env_root = load_yaml(env_path)
-    require_keys(env_root, ["environment"], str(env_path))
-    env = env_root["environment"]
-    require_keys(env, ["home_dir", "model_root", "tools", "simulation"], "environment")
-    tools = env["tools"]
-    if not isinstance(tools, dict):
-        raise BuildError(f"'tools' must be a mapping in {env_path}")
-    tool_keys = {
-        "python3": ["exe", "version", "version_cmd"],
-        "vlib": ["exe", "version", "version_cmd"],
-        "vlog": ["exe", "version", "version_cmd", "extra_flags"],
-        "vsim": ["exe", "version", "version_cmd"],
-        "quartus_map": ["exe", "version", "version_cmd"],
-        "quartus_sh": ["exe", "version", "version_cmd"],
-        "gtkwave": ["exe", "version", "version_cmd"],
-    }
-    for name in required_tool_names:
-        if name not in tool_keys:
-            raise BuildError(f"unsupported tool requirement '{name}'")
-        if name not in tools:
-            raise BuildError(f"missing '{name}' in environment.tools")
-        cfg = tools[name]
-        require_keys(cfg, tool_keys[name], f"environment.tools.{name}")
-
-    simulation = env["simulation"]
-    require_keys(simulation, ["waveform"], "environment.simulation")
-    waveform = simulation["waveform"]
-    require_keys(waveform, ["enabled", "format"], "environment.simulation.waveform")
-
-    env_context = dict(env)
-    env_context["repo_root"] = str(REPO_ROOT)
-    env_context["host_home"] = os.environ.get("HOME", str(Path.home()))
-    env_context["home_dir"] = resolve_template_text(str(env["home_dir"]), env_context)
-    env_context["model_root"] = resolve_template_text(str(env["model_root"]), env_context)
-    if isinstance(env.get("bin_dir"), str) and env["bin_dir"].strip():
-        env_context["bin_dir"] = resolve_template_text(str(env["bin_dir"]), env_context)
-    else:
-        env_context["bin_dir"] = str(REPO_ROOT / "bin")
-
-    out: dict = {
-        "model_root": env_context["model_root"],
-        "waveform_enabled": bool(waveform["enabled"]),
-        "waveform_format": waveform["format"],
-    }
-    if "python3" in required_tool_names:
-        out["python3_exe"] = resolve_template_text(str(tools["python3"]["exe"]), env_context)
-    if "vlib" in required_tool_names:
-        out["vlib_exe"] = resolve_template_text(str(tools["vlib"]["exe"]), env_context)
-    if "vlog" in required_tool_names:
-        out["vlog_exe"] = resolve_template_text(str(tools["vlog"]["exe"]), env_context)
-        vxf = tools["vlog"].get("extra_flags", "+acc")
-        if isinstance(vxf, list):
-            out["vlog_extra_flags"] = [str(x) for x in vxf if str(x).strip()]
-        else:
-            out["vlog_extra_flags"] = [t for t in str(vxf).split() if t]
-    if "vsim" in required_tool_names:
-        out["vsim_exe"] = resolve_template_text(str(tools["vsim"]["exe"]), env_context)
-    if "quartus_map" in required_tool_names:
-        out["quartus_map_exe"] = resolve_template_text(str(tools["quartus_map"]["exe"]), env_context)
-    if "quartus_sh" in required_tool_names:
-        out["quartus_sh_exe"] = resolve_template_text(str(tools["quartus_sh"]["exe"]), env_context)
-    if "gtkwave" in required_tool_names:
-        out["gtkwave_exe"] = resolve_template_text(str(tools["gtkwave"]["exe"]), env_context)
-    return out
 
 
 def sh_path(path_text: str) -> str:
@@ -437,7 +501,7 @@ def collect_target_step_closure(
 
 
 def collect_target_dependencies(
-    requested_targets: list[str], targets_cfg: dict, steps_cfg: dict
+    requested_targets: list[str], targets_cfg: dict, steps_cfg: dict, build_cfg: dict
 ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     step_to_target: dict[str, str] = {}
     for tname, tcfg in targets_cfg.items():
@@ -457,13 +521,15 @@ def collect_target_dependencies(
                 if dt and dt != tname and dt in requested_set:
                     deps.add(dt)
         target_dependencies[tname] = deps
-    # When FPGA and simulation are both requested, run Quartus only after vsim/review.
-    rs = set(requested_targets)
-    if "fpga" in rs:
-        if "test" in rs:
-            target_dependencies["fpga"].add("test")
-        if "regress" in rs:
-            target_dependencies["fpga"].add("regress")
+    for rule in (build_cfg.get("target_ordering") or {}).get("edges") or []:
+        when = set(rule.get("when_all_requested") or [])
+        if not when.issubset(requested_set):
+            continue
+        edge = rule.get("add_edge") or {}
+        before = edge.get("before")
+        after = edge.get("after")
+        if isinstance(before, str) and isinstance(after, str) and before in target_dependencies:
+            target_dependencies[before].add(after)
     return target_dependencies, target_closures
 
 
@@ -506,100 +572,111 @@ def prepare_filelists(context: dict) -> None:
     write_generated_filelist(context["all_filelist"], context["generated_all_filelist"], context)
 
 
-def fpga_include_and_sources_from_rtl_filelist(context: dict) -> tuple[list[str], list[str]]:
-    fl = Path(context["generated_rtl_filelist"])
-    if not fl.is_file():
-        raise BuildError(f"missing generated RTL filelist: {fl}")
-    incs: list[str] = []
-    srcs: list[str] = []
-    for raw in (ln.strip() for ln in fl.read_text(encoding="utf-8").splitlines()):
-        if not raw or raw.startswith("#"):
-            continue
-        if raw.startswith("+incdir+"):
-            incs.append(Path(raw[len("+incdir+") :].strip()).resolve().as_posix())
-            continue
-        p = Path(raw).resolve()
-        if p.is_file() and p.suffix.lower() in {".sv", ".svh", ".v", ".vh"}:
-            srcs.append(p.as_posix())
-    if not srcs:
-        raise BuildError("no RTL source files found for FPGA (expected .sv/.v in generated RTL filelist)")
-    return incs, srcs
-
-
 def tcl_braced_path(path_posix: str) -> str:
     escaped = path_posix.replace("{", "\\{").replace("}", "\\}")
     return "{" + escaped + "}"
 
 
-def write_quartus_tcl_action(context: dict) -> None:
-    """Emit synth_hw.tcl (Quartus Tcl): project, assignments from RTL filelist, execute_flow -compile."""
-    qdir = Path(context["quartus_out_dir"])
-    qdir.mkdir(parents=True, exist_ok=True)
-    incs, srcs = fpga_include_and_sources_from_rtl_filelist(context)
-    rev = context["fpga_revision"]
-    top = context["fpga_top_entity"]
-    fam = context["fpga_family"].replace('"', "").strip()
-    dev = context["fpga_device"].replace('"', "").strip()
-    lines: list[str] = [
-        "# Auto-generated by HW-OpenClaw tools/build/build.py",
-        f"# IP={context['ip']} revision={rev} top={top}",
-        "load_package flow",
-        "package require ::quartus::project",
-        "set script_dir [file normalize [file dirname [info script]]]",
-        "cd $script_dir",
-        f"set PROJECT_NAME {{{rev}}}",
-        "set search_paths [list]",
-        "set hdl_files [list]",
-    ]
-    for p in incs:
-        lines.append(f"lappend search_paths {tcl_braced_path(p)}")
-    for p in srcs:
-        lines.append(f"lappend hdl_files {tcl_braced_path(p)}")
-    lines.extend(
-        [
-            "if {[llength $search_paths] == 0} {",
-            "  lappend search_paths $script_dir",
-            "}",
-            "if {[catch {project_new $PROJECT_NAME -revision $PROJECT_NAME -overwrite} err]} {",
-            "  post_message -type error \"project_new failed: $err\"",
-            "  exit 2",
-            "}",
-            f"set_global_assignment -name FAMILY {{{fam}}}",
-            f"set_global_assignment -name DEVICE {dev}",
-            f"set_global_assignment -name TOP_LEVEL_ENTITY {top}",
-            "set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files",
-            "foreach p $search_paths {",
-            "  set_global_assignment -name SEARCH_PATH $p",
-            "}",
-            "foreach f $hdl_files {",
-            "  set_global_assignment -name SYSTEMVERILOG_FILE $f",
-            "}",
-            "if {[catch {execute_flow -compile} err]} {",
-            "  post_message -type error \"execute_flow -compile failed: $err\"",
-            "  project_close",
-            "  exit 1",
-            "}",
-            "project_close",
-        ]
-    )
-    (qdir / "synth_hw.tcl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+def action_remove_tree(context: dict, cmd: dict) -> None:
+    require_keys(cmd, ["path"], "remove_tree")
+    p = Path(render_value(str(cmd["path"]), context))
+    if p.exists():
+        shutil.rmtree(p)
 
 
-QUARTUS_LOG_TRIAGE_PATTERN = re.compile(
-    r"(?i)(\*\*\s*error|\berror\s*\(|^error:|\bfatal\b|\bsevere\b|unsuccessful|segmentation fault)"
-)
+def action_truncate_file(context: dict, cmd: dict) -> None:
+    require_keys(cmd, ["path"], "truncate_file")
+    p = Path(render_value(str(cmd["path"]), context))
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("", encoding="utf-8")
 
 
-def print_quartus_failure_triage(context: dict, *, max_log_lines: int = 28) -> None:
-    """Print one-line report pointers and grep-friendly excerpts from quartus.log (stderr)."""
-    rev = str(context.get("fpga_revision", "project"))
-    qroot = Path(context["quartus_out_dir"]).resolve()
+def action_filelist_consumer(context: dict, cmd: dict, build_cfg: dict) -> None:
+    require_keys(cmd, ["consumer"], "filelist_consumer")
+    name = str(cmd["consumer"])
+    consumers = build_cfg.get("filelist_consumers") or {}
+    if name not in consumers:
+        raise BuildError(f"unknown filelist_consumers entry {name!r}")
+    spec = consumers[name]
+    require_keys(spec, ["read_filelist_key", "incdir_prefix", "source_suffixes"], f"filelist_consumers.{name}")
+    fl = Path(context[str(spec["read_filelist_key"])])
+    if not fl.is_file():
+        raise BuildError(f"missing filelist: {fl}")
+    incpfx = str(spec["incdir_prefix"])
+    suffixes = {s.lower() for s in spec["source_suffixes"]}
+    incs: list[str] = []
+    srcs: list[str] = []
+    for raw in (ln.strip() for ln in fl.read_text(encoding="utf-8").splitlines()):
+        if not raw or raw.startswith("#"):
+            continue
+        if raw.startswith(incpfx):
+            incs.append(Path(raw[len(incpfx) :].strip()).resolve().as_posix())
+            continue
+        p = Path(raw).resolve()
+        if p.is_file() and p.suffix.lower() in suffixes:
+            srcs.append(p.as_posix())
+    if not srcs:
+        raise BuildError(f"filelist_consumer {name!r}: no matching source files in {fl}")
+    search_lines = [f"lappend search_paths {tcl_braced_path(p)}" for p in incs]
+    hdl_lines = [f"lappend hdl_files {tcl_braced_path(p)}" for p in srcs]
+    context["quartus_search_paths_tcl_block"] = "\n".join(search_lines) + ("\n" if search_lines else "")
+    context["quartus_hdl_files_tcl_block"] = "\n".join(hdl_lines) + ("\n" if hdl_lines else "")
+
+
+def walk_template_key(build_cfg: dict, dotted: str) -> object:
+    node: object = build_cfg
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            raise BuildError(f"missing template key {dotted!r} in build.yaml")
+        node = node[part]
+    return node
+
+
+ANGLE_CTX = re.compile(r"<<([a-zA-Z_][a-zA-Z0-9_]*)>>")
+
+
+def apply_angle_bracket_template(text: str, context: dict) -> str:
+    """Substitute <<context_key>> from context (Tcl/other templates stay brace-safe)."""
+
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in context:
+            raise BuildError(f"missing context key {key!r} for template substitution")
+        return str(context[key])
+
+    return ANGLE_CTX.sub(repl, text)
+
+
+def action_write_text_template(context: dict, cmd: dict, build_cfg: dict) -> None:
+    require_keys(cmd, ["template_key", "dest"], "write_text_template")
+    node = walk_template_key(build_cfg, str(cmd["template_key"]))
+    if not isinstance(node, str):
+        raise BuildError("write_text_template template must be a string")
+    text = apply_angle_bracket_template(str(node), context)
+    flow = str(context.get("b_quartus_execute_flow_arg", "-compile")).strip()
+    text = text.replace("__BUILD_FLOW_ARG__", flow)
+    dest = Path(render_value(str(cmd["dest"]), context))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text, encoding="utf-8")
+
+
+def print_log_triage(profile_name: str, context: dict, build_cfg: dict) -> None:
+    profiles = build_cfg.get("log_triage_profiles") or {}
+    if profile_name not in profiles:
+        return
+    prof = profiles[profile_name]
+    require_keys(prof, ["log_context_key"], f"log_triage_profiles.{profile_name}")
+    rev = str(context.get(str(prof.get("revision_context_key", "fpga_revision")), "project"))
+    if "out_dir_context_key" in prof:
+        qroot = Path(render_value(str(prof["out_dir_context_key"]), context)).resolve()
+    else:
+        qroot = Path(context.get("quartus_out_dir", ".")).resolve()
     outf = qroot / "output_files"
-    log_p = Path(context["quartus_log"]).resolve()
-
+    log_p = Path(render_value(str(prof["log_context_key"]), context)).resolve()
+    suffixes = prof.get("report_suffixes") or ["fit", "sta", "map", "flow"]
     report_paths: list[str] = []
     if outf.is_dir():
-        for suffix in ("fit", "sta", "map", "flow"):
+        for suffix in suffixes:
             p = (outf / f"{rev}.{suffix}.rpt").resolve()
             if p.is_file():
                 report_paths.append(str(p))
@@ -609,106 +686,118 @@ def print_quartus_failure_triage(context: dict, *, max_log_lines: int = 28) -> N
             for p in sorted(outf.glob("*.sta.rpt"))[:2]:
                 if str(p.resolve()) not in report_paths:
                     report_paths.append(str(p.resolve()))
-
+    tag = str(prof.get("tag", profile_name))
     shown = " ".join(display_path(p) for p in report_paths) if report_paths else f"(no rpt yet under {display_path(str(outf))})"
     log_disp = display_path(str(log_p))
+    hint = str(prof.get("log_grep_hint", "Error|FATAL"))
     with PRINT_LOCK:
-        print(f"[quartus-triage] primary_reports={shown}", file=sys.stderr, flush=True)
-        print(
-            f'[quartus-triage] log_grep: rg -n "\\*\\* Error|Error:|ERROR:|FATAL|unsuccessful" {log_disp}',
-            file=sys.stderr,
-            flush=True,
-        )
-
+        print(f"[{tag}-triage] primary_reports={shown}", file=sys.stderr, flush=True)
+        print(f"[{tag}-triage] log_grep: rg -n \"{hint}\" {log_disp}", file=sys.stderr, flush=True)
+    pat = re.compile(str(prof.get("line_pattern", "(?i)error")))
+    max_lines = int(prof.get("max_matching_lines", 28))
     hits: list[str] = []
     if log_p.is_file():
         for line in log_p.read_text(encoding="utf-8", errors="replace").splitlines():
-            if QUARTUS_LOG_TRIAGE_PATTERN.search(line):
+            if pat.search(line):
                 hits.append(line.rstrip()[:400])
-                if len(hits) >= max_log_lines:
+                if len(hits) >= max_lines:
                     break
     with PRINT_LOCK:
-        print(f"[quartus-triage] first_{max_log_lines}_matching_lines_from_quartus.log:", file=sys.stderr, flush=True)
+        print(f"[{tag}-triage] first_{max_lines}_matching_log_lines:", file=sys.stderr, flush=True)
         if hits:
             for h in hits:
                 print(f"  {h}", file=sys.stderr, flush=True)
         else:
-            print(
-                f"  (no lines matched triage pattern; read full log: {log_disp})",
-                file=sys.stderr,
-                flush=True,
-            )
+            print(f"  (no lines matched; read full log: {log_disp})", file=sys.stderr, flush=True)
 
 
-def run_quartus_sh_compile_action(context: dict) -> None:
-    qdir = Path(context["quartus_out_dir"])
-    tcl = qdir / "synth_hw.tcl"
-    if not tcl.is_file():
-        raise BuildError(f"missing {tcl}; run write_quartus_tcl first")
-    argv = [context["quartus_sh_exe"], "-t", tcl.name]
-    try:
-        run_subprocess_logged(argv, cwd=qdir, log_path=Path(context["quartus_log"]))
-    except BuildError:
-        print_quartus_failure_triage(context)
-        raise
+def action_log_tail_review(context: dict, _cmd: dict, build_cfg: dict) -> None:
+    cfg = build_cfg.get("log_tail_review") or {}
+    for line in cfg.get("summaries") or []:
+        if isinstance(line, str) and line.strip():
+            try:
+                s = format_text(line, context)
+            except KeyError:
+                continue
+            if s.strip():
+                print_summary_line(s)
+    for sec in cfg.get("sections") or []:
+        if not isinstance(sec, dict):
+            continue
+        label = str(sec.get("label", "log"))
+        path_t = str(sec.get("path", ""))
+        n = int(sec.get("tail_lines", 20))
+        p = Path(render_value(path_t, context))
+
+        def tail_text(path: Path, lines_n: int) -> str:
+            if not path.is_file():
+                return f"(missing {path.name})"
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            body = "\n".join(lines[-lines_n:]) if lines else "(empty)"
+            return body
+
+        with PRINT_LOCK:
+            print(f"--- {label} (tail) ---", flush=True)
+            print(tail_text(p, n), flush=True)
 
 
-def test_phase_vlog_action(context: dict) -> None:
-    """Per-test vlog into existing compile work library (after compile target). Logs to test run_dir."""
-    run_dir = Path(context["run_dir"])
-    run_dir.mkdir(parents=True, exist_ok=True)
-    vlog_log = run_dir / "vlog.log"
-    comp = Path(context["compile_dir"])
-    print_summary_line(f"phase=vlog ip={context['ip']} test={context.get('test_name', '')}")
-    argv = [
-        context["vlog_exe"],
-        "-sv",
-        "-work",
-        "work",
-        *context["vlog_extra_flags"],
-        "-f",
-        context["generated_all_filelist"],
-    ]
-    result = subprocess.run(argv, cwd=str(comp), text=True, capture_output=True)
-    text = (result.stdout or "") + (result.stderr or "")
-    vlog_log.write_text(text, encoding="utf-8")
-    if result.returncode != 0:
-        if result.stdout:
-            print(result.stdout, end="", file=sys.stderr)
-        if result.stderr:
-            print(result.stderr, end="", file=sys.stderr)
-        raise BuildError(f"vlog (test phase) failed with exit code {result.returncode}")
+def action_foreach_run_step(context: dict, cmd: dict, steps_cfg: dict, build_cfg: dict) -> None:
+    require_keys(cmd, ["child_step", "items_context_key", "iterate_param", "path_mode"], "foreach_run_step")
+    step = str(cmd["child_step"])
+    items = context.get(str(cmd["items_context_key"])) or []
+    if not items:
+        print_summary_line(str(cmd.get("empty_summary", "tests=0 passed=0 failed=0")))
+        return
+    step_cfg = steps_cfg[step]
+    failed: list[str] = []
+    passed = 0
+    errors: list[str] = []
+    for item in items:
+        test_context = dict(context)
+        test_context[str(cmd["iterate_param"])] = item
+        apply_test_run_paths(test_context, str(cmd["path_mode"]), build_cfg)
+        subj = get_step_display_name(step, steps_cfg, test_context)
+        t0 = monotonic()
+        print_status_line("start", subj)
+        try:
+            for command in step_cfg.get("commands", []):
+                run_command(command, test_context, steps_cfg, build_cfg)
+        except BuildError as err:
+            errors.append(str(err))
+            failed.append(str(item))
+            print_status_line("done-fail", subj, duration=duration_text(t0))
+            print_review_files(get_step_review_files(step, steps_cfg, test_context))
+            print_review_hint(get_step_review_files(step, steps_cfg, test_context))
+            continue
+        passed += 1
+        print_status_line("done-pass", subj, duration=duration_text(t0))
+        print_review_files(get_step_review_files(step, steps_cfg, test_context))
+    if errors:
+        print_summary_line(
+            f"tests={len(items)} passed={passed} failed={len(failed)} failed_names={','.join(failed)}"
+        )
+        for msg in errors:
+            print(msg, file=sys.stderr)
+        raise BuildError("regression failed")
+    print_summary_line(f"tests={len(items)} passed={passed} failed=0")
 
 
-def review_test_outputs_action(context: dict) -> None:
-    """Print paths and short tails of vlog/sim logs (after vsim, before any Quartus work)."""
-    run_dir = Path(context["run_dir"])
-    vlog_log = run_dir / "vlog.log"
-    sim_log = Path(context["log_file"])
-    wave = Path(context.get("wave_path", ""))
-    tracker = Path(context.get("tracker_path", ""))
-
-    def tail_text(path: Path, n: int) -> str:
-        if not path.is_file():
-            return f"(missing {path.name})"
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        body = "\n".join(lines[-n:]) if lines else "(empty)"
-        return body
-
-    # Do not wrap in PRINT_LOCK: print_summary_line acquires the same non-reentrant Lock.
-    print_summary_line(
-        f"review ip={context['ip']} test={context.get('test_name', '')} "
-        f"vlog_log={display_path(str(vlog_log))} sim_log={display_path(str(sim_log))}"
-    )
-    if wave.name:
-        print_summary_line(f"waveform={display_path(str(wave))}")
-    if tracker.name:
-        print_summary_line(f"tracker={display_path(str(tracker))}")
-    with PRINT_LOCK:
-        print("--- vlog.log (tail) ---", flush=True)
-        print(tail_text(vlog_log, 25), flush=True)
-        print("--- simulate.log (tail) ---", flush=True)
-        print(tail_text(sim_log, 40), flush=True)
+def apply_test_run_paths(ctx: dict, mode: str, build_cfg: dict) -> None:
+    tr = (build_cfg.get("test_run_paths") or {}).get(mode)
+    if not isinstance(tr, dict):
+        raise BuildError(f"unknown test_run_paths mode {mode!r}")
+    layout_map = tr.get("layout")
+    if not isinstance(layout_map, dict):
+        raise BuildError(f"test_run_paths.{mode}.layout must be a mapping")
+    layout = ctx["output_layout"]
+    for dest_key, layout_key in layout_map.items():
+        ctx[str(dest_key)] = resolve_path(format_text(layout[str(layout_key)], ctx))
+    ctx["wave_enable"] = 1 if ctx.get("waveform_enabled") else 0
+    for exp in build_cfg.get("posix_path_exports") or []:
+        if not isinstance(exp, dict):
+            continue
+        require_keys(exp, ["from", "as"], "posix_path_exports entry")
+        ctx[str(exp["as"])] = sh_path(str(ctx[str(exp["from"])]))
 
 
 def _append_process_output(result: subprocess.CompletedProcess[str], log_path: Path) -> None:
@@ -738,135 +827,89 @@ def run_subprocess_logged(argv: list[str], *, cwd: Path, log_path: Path) -> None
         raise BuildError(f"command failed with exit code {result.returncode}")
 
 
-def compile_sim_action(context: dict) -> None:
-    comp = Path(context["compile_dir"])
-    comp.mkdir(parents=True, exist_ok=True)
-    log_path = Path(context["log_file"])
-    work = comp / "work"
-    if work.exists():
-        shutil.rmtree(work)
-    log_path.write_text("", encoding="utf-8")
-    r1 = subprocess.run(
-        [context["vlib_exe"], "work"],
-        cwd=str(comp),
-        text=True,
-        capture_output=True,
-    )
-    _append_process_output(r1, log_path)
-    if r1.returncode != 0:
-        raise BuildError(f"vlib failed with exit code {r1.returncode}")
-    argv = [
-        context["vlog_exe"],
-        "-sv",
-        "-work",
-        "work",
-        *context["vlog_extra_flags"],
-        "-f",
-        context["generated_all_filelist"],
-    ]
-    r2 = subprocess.run(argv, cwd=str(comp), text=True, capture_output=True)
-    _append_process_output(r2, log_path)
-    if r2.returncode != 0:
-        if r2.stdout:
-            print(r2.stdout, end="", file=sys.stderr)
-        if r2.stderr:
-            print(r2.stderr, end="", file=sys.stderr)
-        raise BuildError(f"vlog failed with exit code {r2.returncode}")
-
-
-def lint_sim_action(context: dict) -> None:
-    lint_dir = Path(context["lint_out_dir"])
-    lint_dir.mkdir(parents=True, exist_ok=True)
-    log_path = Path(context["lint_log"])
-    work = lint_dir / "work"
-    if work.exists():
-        shutil.rmtree(work)
-    log_path.write_text("", encoding="utf-8")
-    r1 = subprocess.run(
-        [context["vlib_exe"], "work"],
-        cwd=str(lint_dir),
-        text=True,
-        capture_output=True,
-    )
-    _append_process_output(r1, log_path)
-    if r1.returncode != 0:
-        raise BuildError(f"vlib (lint) failed with exit code {r1.returncode}")
-    argv = [
-        context["vlog_exe"],
-        "-lint",
-        "-sv",
-        "-work",
-        "work",
-        "-f",
-        context["generated_rtl_filelist"],
-    ]
-    r2 = subprocess.run(argv, cwd=str(lint_dir), text=True, capture_output=True)
-    _append_process_output(r2, log_path)
-    if r2.returncode != 0:
-        if r2.stdout:
-            print(r2.stdout, end="", file=sys.stderr)
-        if r2.stderr:
-            print(r2.stderr, end="", file=sys.stderr)
-        raise BuildError(f"vlog -lint failed with exit code {r2.returncode}")
-
-
-def simulate_sim_action(context: dict) -> None:
-    Path(context["run_dir"]).mkdir(parents=True, exist_ok=True)
-    log_path = Path(context["log_file"])
-    argv = [
-        context["vsim_exe"],
-        "-c",
-        "-work",
-        "work",
-        context["tb_top_module"],
-        "-do",
-        "run -all; quit",
-        f"+test={context['test_name']}",
-        f"+tracker_path={sh_path(context['tracker_path'])}",
-        f"+wave_enable={context['wave_enable']}",
-        f"+wave_path={sh_path(context['wave_path'])}",
-    ]
-    run_subprocess_logged(argv, cwd=Path(context["compile_dir"]), log_path=log_path)
-
-
-def run_regression(
-    _step_cfg: dict, base_context: dict, tests: list[str], steps_cfg: dict
-) -> None:
-    if not tests:
-        print_summary_line("tests=0 passed=0 failed=0")
-        return
-    simulate_step_cfg = steps_cfg["simulate"]
-    failed: list[str] = []
-    passed = 0
-    errors: list[str] = []
-    for test_name in tests:
-        test_context = get_test_data(dict(base_context), test_name, "regress")
-        subj = get_step_display_name("simulate", steps_cfg, test_context)
-        test_context["status_subject"] = subj
-        t0 = monotonic()
-        print_status_line("start", subj)
-        try:
-            for command in simulate_step_cfg.get("commands", []):
-                run_command(command, test_context, steps_cfg)
-        except BuildError as err:
-            errors.append(str(err))
-            failed.append(test_name)
-            print_status_line("done-fail", subj, duration=duration_text(t0))
-            print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
-            print_review_hint(get_step_review_files("simulate", steps_cfg, test_context))
+def merged_run_from_invoke(cmd: dict, build_cfg: dict) -> dict:
+    name = cmd.get("invoke")
+    if not isinstance(name, str) or not name.strip():
+        raise BuildError("'invoke' requires a non-empty template name")
+    templates = build_cfg.get("command_templates")
+    if not isinstance(templates, dict) or name not in templates:
+        raise BuildError(f"unknown command_templates entry '{name}'")
+    tpl = templates[name]
+    if not isinstance(tpl, dict):
+        raise BuildError(f"command_templates.{name} must be a mapping")
+    merged = dict(tpl)
+    for key, val in cmd.items():
+        if key in {"invoke", "print_summary"}:
             continue
-        passed += 1
-        print_status_line("done-pass", subj, duration=duration_text(t0))
-        print_review_files(get_step_review_files("simulate", steps_cfg, test_context))
-    if errors:
-        print_summary_line(f"tests={len(tests)} passed={passed} failed={len(failed)} failed_names={','.join(failed)}")
-        for msg in errors:
-            print(msg, file=sys.stderr)
-        raise BuildError("regression failed")
-    print_summary_line(f"tests={len(tests)} passed={passed} failed=0")
+        merged[key] = val
+    return merged
 
 
-def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
+def merged_run_from_run_key(cmd: dict) -> dict:
+    block = cmd.get("run")
+    if not isinstance(block, dict):
+        raise BuildError("'run' must be a mapping")
+    merged = dict(block)
+    for key, val in cmd.items():
+        if key == "run":
+            continue
+        merged[key] = val
+    return merged
+
+
+def execute_merged_run(merged: dict, context: dict, build_cfg: dict) -> None:
+    argv_tpl = merged.get("argv")
+    if not isinstance(argv_tpl, list) or not argv_tpl:
+        raise BuildError("run/invoke requires non-empty argv (list of template strings)")
+    argv = [render_value(str(item), context) for item in argv_tpl]
+    ext_key = merged.get("append_argv_from_context")
+    if ext_key:
+        if not isinstance(ext_key, str):
+            raise BuildError("append_argv_from_context must be a string naming a context key")
+        extra = context.get(ext_key)
+        if extra is None:
+            pass
+        elif isinstance(extra, list):
+            argv.extend(str(x) for x in extra if str(x).strip())
+        else:
+            raise BuildError(f"context[{ext_key!r}] must be a list for append_argv_from_context")
+
+    cwd_raw = merged.get("cwd")
+    cwd = Path(render_value(str(cwd_raw), context)) if cwd_raw else REPO_ROOT
+    log_mode = str(merged.get("log_mode", "overwrite")).lower()
+    log_raw = merged.get("log")
+    if log_raw:
+        log_path = Path(render_value(str(log_raw), context))
+        if log_mode == "append":
+            result = subprocess.run(argv, cwd=str(cwd), text=True, capture_output=True)
+            _append_process_output(result, log_path)
+            if result.returncode != 0:
+                if result.stdout:
+                    print(result.stdout, end="", file=sys.stderr)
+                if result.stderr:
+                    print(result.stderr, end="", file=sys.stderr)
+                raise BuildError(f"command failed with exit code {result.returncode}")
+        elif log_mode == "overwrite":
+            try:
+                run_subprocess_logged(argv, cwd=cwd, log_path=log_path)
+            except BuildError:
+                triage = merged.get("failure_triage_profile")
+                if isinstance(triage, str) and triage.strip():
+                    print_log_triage(triage.strip(), context, build_cfg)
+                raise
+        else:
+            raise BuildError(f"invalid log_mode {log_mode!r} (use append or overwrite)")
+    else:
+        result = subprocess.run(argv, cwd=str(cwd), text=True, capture_output=True)
+        if result.stdout:
+            print(result.stdout, end="", file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        if result.returncode != 0:
+            raise BuildError(f"command failed with exit code {result.returncode}")
+
+
+def run_command(command: str | dict, context: dict, steps_cfg: dict, build_cfg: dict) -> None:
     if isinstance(command, dict) and command.get("action") == "ensure_dir":
         path_t = command.get("path")
         if not isinstance(path_t, str):
@@ -874,34 +917,40 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
         Path(render_value(path_t, context)).mkdir(parents=True, exist_ok=True)
         return
     if isinstance(command, dict) and command.get("action") == "run_qa":
-        run_qa_checks(context)
+        run_qa_from_profile(context, build_cfg)
         return
     if isinstance(command, dict) and command.get("action") == "prepare_filelists":
         prepare_filelists(context)
         return
-    if isinstance(command, dict) and command.get("action") == "compile_sim":
-        compile_sim_action(context)
+    if isinstance(command, dict) and command.get("action") == "remove_tree":
+        action_remove_tree(context, command)
         return
-    if isinstance(command, dict) and command.get("action") == "lint_sim":
-        lint_sim_action(context)
+    if isinstance(command, dict) and command.get("action") == "truncate_file":
+        action_truncate_file(context, command)
         return
-    if isinstance(command, dict) and command.get("action") == "test_phase_vlog":
-        test_phase_vlog_action(context)
+    if isinstance(command, dict) and command.get("action") == "filelist_consumer":
+        action_filelist_consumer(context, command, build_cfg)
         return
-    if isinstance(command, dict) and command.get("action") == "review_test_outputs":
-        review_test_outputs_action(context)
+    if isinstance(command, dict) and command.get("action") == "write_text_template":
+        action_write_text_template(context, command, build_cfg)
         return
-    if isinstance(command, dict) and command.get("action") == "simulate_sim":
-        simulate_sim_action(context)
+    if isinstance(command, dict) and command.get("action") == "log_tail_review":
+        action_log_tail_review(context, command, build_cfg)
         return
-    if isinstance(command, dict) and command.get("action") == "write_quartus_tcl":
-        write_quartus_tcl_action(context)
+    if isinstance(command, dict) and command.get("action") == "foreach_run_step":
+        action_foreach_run_step(context, command, steps_cfg, build_cfg)
         return
-    if isinstance(command, dict) and command.get("action") == "run_quartus_sh_compile":
-        run_quartus_sh_compile_action(context)
+    if isinstance(command, dict) and "invoke" in command:
+        ps = command.get("print_summary")
+        if isinstance(ps, str) and ps.strip():
+            print_summary_line(format_text(ps, context))
+        execute_merged_run(merged_run_from_invoke(command, build_cfg), context, build_cfg)
         return
-    if isinstance(command, dict) and command.get("action") == "run_regression":
-        run_regression(steps_cfg["regress"], context, context.get("selected_tests", []), steps_cfg)
+    if isinstance(command, dict) and "run" in command:
+        ps = command.get("print_summary")
+        if isinstance(ps, str) and ps.strip():
+            print_summary_line(format_text(ps, context))
+        execute_merged_run(merged_run_from_run_key(command), context, build_cfg)
         return
 
     command_text, log_name = normalize_command(command)
@@ -923,7 +972,7 @@ def run_command(command: str | dict, context: dict, steps_cfg: dict) -> None:
         raise BuildError(f"command failed with exit code {result.returncode}")
 
 
-def run_step(step_name: str, steps_cfg: dict, context: dict, completed: set[str]) -> None:
+def run_step(step_name: str, steps_cfg: dict, context: dict, completed: set[str], build_cfg: dict) -> None:
     if step_name in completed:
         return
     if step_name not in steps_cfg:
@@ -931,12 +980,12 @@ def run_step(step_name: str, steps_cfg: dict, context: dict, completed: set[str]
     step_cfg = steps_cfg[step_name]
     subject = get_step_display_name(step_name, steps_cfg, context)
     for dep in get_step_dependencies(step_name, steps_cfg):
-        run_step(dep, steps_cfg, context, completed)
+        run_step(dep, steps_cfg, context, completed, build_cfg)
     t0 = monotonic()
     print_status_line("start", subject)
     try:
         for cmd in step_cfg.get("commands", []):
-            run_command(cmd, context, steps_cfg)
+            run_command(cmd, context, steps_cfg, build_cfg)
     except BuildError:
         print_status_line("done-fail", subject, duration=duration_text(t0))
         print_review_files(get_step_review_files(step_name, steps_cfg, context))
@@ -950,9 +999,6 @@ def run_step(step_name: str, steps_cfg: dict, context: dict, completed: set[str]
 def collect_required_tool_names(requested_targets: list[str], targets_cfg: dict, context: dict) -> set[str]:
     required: set[str] = set()
     for target_name in requested_targets:
-        if target_name == "debug":
-            required.add("gtkwave")
-            continue
         tcfg = targets_cfg[target_name]
         for req in tcfg.get("tool_requirements", []):
             if isinstance(req, str):
@@ -979,7 +1025,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("-compile", action="store_true", help="Questa vlib + vlog compile")
     p.add_argument("-test", nargs="?", const=INTERACTIVE_SELECT, help="run one DV test (vsim)")
     p.add_argument("-regress", nargs="?", const=INTERACTIVE_SELECT, help="run regression (vsim)")
-    p.add_argument("-fpga", action="store_true", help="Quartus smoke (quartus_map --version)")
+    p.add_argument(
+        "-fpga",
+        action="store_true",
+        help="FPGA compile (see build.yaml targets.fpga / quartus_compile step)",
+    )
     p.add_argument("-debug", action="store_true", help="open last VCD in GTKWave")
     args = p.parse_args()
     modes = sum(
@@ -1061,12 +1111,14 @@ def load_named_yaml_entries(directory: Path, top_key: str) -> list[str]:
     return names
 
 
-def get_available_tests(ip_data: dict) -> list[str]:
-    return load_named_yaml_entries(REPO_ROOT / ip_data["test_dir"], "test")
+def get_available_tests(ip_data: dict, build_cfg: dict) -> list[str]:
+    top = (build_cfg.get("discovery") or {}).get("test_yaml_top_key", "test")
+    return load_named_yaml_entries(REPO_ROOT / ip_data["test_dir"], str(top))
 
 
-def get_available_regressions(ip_data: dict) -> list[str]:
-    return load_named_yaml_entries(REPO_ROOT / ip_data["regression_dir"], "regression")
+def get_available_regressions(ip_data: dict, build_cfg: dict) -> list[str]:
+    top = (build_cfg.get("discovery") or {}).get("regression_yaml_top_key", "regression")
+    return load_named_yaml_entries(REPO_ROOT / ip_data["regression_dir"], str(top))
 
 
 def prompt_for_named_entry(kind: str, names: list[str]) -> str | None:
@@ -1137,71 +1189,71 @@ def get_requested_mode_names(args: argparse.Namespace) -> list[str]:
     return resolve_requested_targets(args)
 
 
-def get_test_data(ip_data: dict, test_name: str, mode: str) -> dict:
+def get_test_data(ip_data: dict, test_name: str, mode: str, build_cfg: dict) -> dict:
+    disc = build_cfg.get("discovery") or {}
+    top = str(disc.get("test_yaml_top_key", "test"))
     test_file = REPO_ROOT / ip_data["test_dir"] / f"{test_name}.yaml"
     if not test_file.is_file():
         raise BuildError(f"unknown test '{test_name}' for ip '{ip_data['ip']}'")
     test_data = load_yaml(test_file)
-    require_keys(test_data, ["test"], str(test_file))
-    if test_data["test"]["name"] != test_name:
+    require_keys(test_data, [top], str(test_file))
+    if test_data[top]["name"] != test_name:
         raise BuildError(f"test file name mismatch for '{test_name}'")
     ip_data["test_name"] = test_name
-    layout = ip_data["output_layout"]
-    if mode == "test":
-        ip_data["run_dir"] = resolve_path(format_text(layout["test_out_dir"], ip_data))
-        ip_data["log_file"] = resolve_path(format_text(layout["test_log"], ip_data))
-        ip_data["tracker_path"] = resolve_path(format_text(layout["test_tracker"], ip_data))
-        ip_data["wave_path"] = resolve_path(format_text(layout["test_wave"], ip_data))
-    else:
-        ip_data["run_dir"] = resolve_path(format_text(layout["regression_test_out_dir"], ip_data))
-        ip_data["log_file"] = resolve_path(format_text(layout["regression_test_log"], ip_data))
-        ip_data["tracker_path"] = resolve_path(format_text(layout["regression_test_tracker"], ip_data))
-        ip_data["wave_path"] = resolve_path(format_text(layout["regression_test_wave"], ip_data))
-    ip_data["wave_enable"] = 1 if ip_data.get("waveform_enabled") else 0
+    apply_test_run_paths(ip_data, "test" if mode == "test" else "regress", build_cfg)
     return ip_data
 
 
-def get_regression_tests(ip_data: dict, regression_name: str) -> list[str]:
+def get_regression_tests(ip_data: dict, regression_name: str, build_cfg: dict) -> list[str]:
+    disc = build_cfg.get("discovery") or {}
+    rtop = str(disc.get("regression_yaml_top_key", "regression"))
     reg_file = REPO_ROOT / ip_data["regression_dir"] / f"{regression_name}.yaml"
     if not reg_file.is_file():
         raise BuildError(f"unknown regression '{regression_name}'")
     reg_data = load_yaml(reg_file)
-    require_keys(reg_data, ["regression"], str(reg_file))
-    reg = reg_data["regression"]
+    require_keys(reg_data, [rtop], str(reg_file))
+    reg = reg_data[rtop]
     if reg["name"] != regression_name:
         raise BuildError("regression name mismatch")
     tests = reg["tests"]
     if not isinstance(tests, list):
         raise BuildError("'tests' must be a list")
     ip_data["regress_name"] = regression_name
+    ttop = str(disc.get("test_yaml_top_key", "test"))
     for t in tests:
-        get_test_data(dict(ip_data), t, "regress")
+        tf = REPO_ROOT / ip_data["test_dir"] / f"{t}.yaml"
+        if not tf.is_file():
+            raise BuildError(f"regression lists unknown test {t!r}")
+        td = load_yaml(tf)
+        require_keys(td, [ttop], str(tf))
+        if td[ttop]["name"] != t:
+            raise BuildError(f"test file name mismatch for {t!r}")
     return list(tests)
 
 
-def resolve_selector_argument_name(param: str) -> str:
-    m = {"test_name": "test", "regress_name": "regress"}
+def resolve_selector_argument_name(param: str, build_cfg: dict) -> str:
+    m = (build_cfg.get("selectors") or {}).get("param_to_arg") or {}
     if param not in m:
-        raise BuildError(f"unsupported selector param '{param}'")
-    return m[param]
+        raise BuildError(f"unsupported selector param '{param}' (add to selectors.param_to_arg)")
+    return str(m[param])
 
 
 def resolve_target_context(
-    base: dict, target_name: str, target_cfg: dict, args: argparse.Namespace
+    base: dict, target_name: str, target_cfg: dict, args: argparse.Namespace, build_cfg: dict
 ) -> dict:
     ctx = dict(base)
     sel = target_cfg.get("selector")
     if sel:
         require_keys(sel, ["kind", "param"], f"targets.{target_name}.selector")
-        argn = resolve_selector_argument_name(sel["param"])
+        argn = resolve_selector_argument_name(sel["param"], build_cfg)
         val = getattr(args, argn)
         if not isinstance(val, str) or not val:
             raise BuildError(f"missing selector value for target '{target_name}'")
         if sel["kind"] == "test":
-            ctx = get_test_data(ctx, val, "test")
+            ctx = get_test_data(ctx, val, "test", build_cfg)
         elif sel["kind"] == "regression":
             ctx["regress_name"] = val
-            ctx["selected_tests"] = get_regression_tests(dict(ctx), val)
+            ctx["selected_tests"] = get_regression_tests(dict(ctx), val, build_cfg)
         else:
             raise BuildError(f"unsupported selector kind '{sel['kind']}'")
     tctx = target_cfg.get("context", {})
@@ -1262,13 +1314,6 @@ def iter_sv_sources(root: Path) -> list[Path]:
     return sorted(p for p in root.rglob("*") if p.is_file() and p.suffix in {".sv", ".svh"})
 
 
-ALWAYS_PATTERN = re.compile(r"(?<![\w$])always(?!_(?:comb|ff|latch)\b)")
-INLINE_LOGIC_INIT_PATTERN = re.compile(r"^\s*logic\b[^;]*=")
-NONBLOCKING_ASSIGN_PATTERN = re.compile(
-    r"^\s*[A-Za-z_][\w$]*(?:\s*\[[^]]+\])?(?:\s*\.[A-Za-z_][\w$]*(?:\s*\[[^]]+\])?)*\s*<=\s*.+;"
-)
-
-
 def strip_line_comments(line: str, in_block: bool) -> tuple[str, bool]:
     cleaned: list[str] = []
     i = 0
@@ -1291,36 +1336,47 @@ def strip_line_comments(line: str, in_block: bool) -> tuple[str, bool]:
     return "".join(cleaned), in_block
 
 
-def validate_style_file(path: Path) -> list[str]:
+def validate_style_file(path: Path, patterns: dict[str, re.Pattern], allow_nb: bool) -> list[str]:
     violations: list[str] = []
-    allow_nb = path.name == "macros.svh"
+    labels = {
+        "always_plain": "plain 'always' is not allowed",
+        "inline_logic_init": "inline logic init not allowed",
+        "nonblocking_assign": "explicit <= not allowed",
+    }
     in_block = False
     for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line, in_block = strip_line_comments(raw, in_block)
         if not line.strip():
             continue
-        if ALWAYS_PATTERN.search(line):
-            violations.append(f"{path.relative_to(REPO_ROOT)}:{n}: plain 'always' is not allowed")
-        if INLINE_LOGIC_INIT_PATTERN.search(line):
-            violations.append(f"{path.relative_to(REPO_ROOT)}:{n}: inline logic init not allowed")
-        if not allow_nb and NONBLOCKING_ASSIGN_PATTERN.search(line):
-            violations.append(f"{path.relative_to(REPO_ROOT)}:{n}: explicit <= not allowed")
+        for key, pat in patterns.items():
+            if key == "nonblocking_assign" and allow_nb:
+                continue
+            if pat.search(line):
+                violations.append(
+                    f"{path.relative_to(REPO_ROOT)}:{n}: {labels.get(key, key)}"
+                )
     if path.name != path.name.lower():
         violations.append(f"{path.relative_to(REPO_ROOT)}: file name must be lowercase")
     return violations
 
 
-def collect_validation_style_files(context: dict) -> list[Path]:
+def collect_sv_style_files_from_qa_spec(context: dict, collect: list) -> list[Path]:
     files: set[Path] = set()
-    rtl_src: set[Path] = set()
-    collect_filelist_sources((REPO_ROOT / context["rtl_filelist"]).resolve(), set(), rtl_src)
-    files.update(rtl_src)
-    dv_root = REPO_ROOT / f"src/dv/{context['ip']}/code"
-    if dv_root.is_dir():
-        files.update(iter_sv_sources(dv_root.resolve()))
-    inc = REPO_ROOT / "src/rtl/common/include"
-    if inc.is_dir():
-        files.update(iter_sv_sources(inc.resolve()))
+    for entry in collect:
+        if not isinstance(entry, dict):
+            continue
+        kind = entry.get("kind")
+        if kind == "from_filelist":
+            ck = str(entry["context_key"])
+            rtl_src: set[Path] = set()
+            collect_filelist_sources((REPO_ROOT / context[ck]).resolve(), set(), rtl_src)
+            files.update(rtl_src)
+        elif kind == "glob_sv":
+            root = REPO_ROOT / format_text(str(entry["root"]), context)
+            if root.is_dir():
+                files.update(iter_sv_sources(root.resolve()))
+            elif not entry.get("optional"):
+                raise BuildError(f"qa collect glob_sv: missing directory {root}")
     return sorted(files)
 
 
@@ -1344,92 +1400,77 @@ def write_validation_report(context: dict, checked: list[Path], violations: list
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_qa_checks(context: dict) -> None:
-    require_keys(
-        context,
-        [
-            "rtl_filelist",
-            "rtl_module",
-            "dv_filelist",
-            "all_filelist",
-            "rtl_top",
-            "lint_dir",
-            "dv_top",
-            "tb_top_module",
-            "regression_dir",
-            "test_dir",
-            "qa_report",
-        ],
-        f"ip.{context['ip']}",
-    )
-    required_dirs = [
-        f"src/rtl/{context['ip']}/code",
-        f"src/rtl/{context['ip']}/lint",
-        f"src/dv/{context['ip']}/code/if",
-        f"src/dv/{context['ip']}/code/pkg",
-        f"src/dv/{context['ip']}/code/env",
-        f"src/dv/{context['ip']}/code/tb",
-        f"src/dv/{context['ip']}/code/tests",
-        f"src/dv/{context['ip']}/filelist",
-        f"src/dv/{context['ip']}/regressions",
-    ]
-    required_files = [
-        context["rtl_filelist"],
-        context["dv_filelist"],
-        context["all_filelist"],
-        context["rtl_top"],
-        f"wiki/rtl/{context['ip']}/rtl-{context['ip']}.md",
-        f"wiki/dv/{context['ip']}/dv-{context['ip']}.md",
-        "wiki/rtl/rtl.md",
-        "wiki/dv/dv.md",
-        "wiki/Home.md",
-        "wiki/flows-methods-phylosophy/repo-structure.md",
-        "wiki/flows-methods-phylosophy/builder-methodology.md",
-        "wiki/flows-methods-phylosophy/software-stack.md",
-        "wiki/flows-methods-phylosophy/fpga-quartus-methodology.md",
-    ]
-    for d in required_dirs:
-        validate_exists(d, "dir")
-    for f in required_files:
-        validate_exists(f, "file")
-    validate_filelist_tree((REPO_ROOT / context["rtl_filelist"]).resolve(), set())
-    validate_filelist_tree((REPO_ROOT / context["dv_filelist"]).resolve(), set())
-    validate_filelist_tree((REPO_ROOT / context["all_filelist"]).resolve(), set())
-    checked = collect_validation_style_files(context)
+def run_qa_from_profile(context: dict, build_cfg: dict) -> None:
+    profile = build_cfg.get("qa_profile")
+    if not isinstance(profile, dict):
+        raise BuildError("build.yaml must define qa_profile")
+    for k in profile.get("require_context_keys", []):
+        if str(k) not in context:
+            raise BuildError(f"qa_profile missing context key {k!r}")
+    checked_files: list[Path] = []
     violations: list[str] = []
-    for path in checked:
-        violations.extend(validate_style_file(path))
-    write_validation_report(context, checked, violations)
+    for check in profile.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        kind = check.get("kind")
+        if kind == "dirs_exist":
+            for d in check.get("paths", []):
+                validate_exists(format_text(str(d), context), "dir")
+        elif kind == "files_exist":
+            for f in check.get("paths", []):
+                validate_exists(format_text(str(f), context), "file")
+        elif kind == "filelist_trees_valid":
+            for ck in check.get("context_paths", []):
+                validate_filelist_tree((REPO_ROOT / context[str(ck)]).resolve(), set())
+        elif kind == "sv_style_scan":
+            patterns_raw = check.get("patterns") or {}
+            patterns = {k: re.compile(str(v)) for k, v in patterns_raw.items()}
+            allow_in = set(check.get("allow_nonblocking_assign_in") or [])
+            checked_files = collect_sv_style_files_from_qa_spec(context, check.get("collect") or [])
+            for path in checked_files:
+                allow_nb = path.name in allow_in
+                violations.extend(validate_style_file(path, patterns, allow_nb))
+        else:
+            raise BuildError(f"unknown qa_profile check kind {kind!r}")
+    write_validation_report(context, checked_files, violations)
     if violations:
         raise BuildError(f"qa failed with {len(violations)} violation(s)")
 
 
-def discover_debug_entries() -> list[dict]:
-    workdir = REPO_ROOT / "workdir"
-    if not workdir.is_dir():
-        return []
+def discover_debug_entries(build_cfg: dict) -> list[dict]:
+    prof = build_cfg.get("debug_profile") or {}
+    globs = prof.get("artifact_globs") or []
     entries: list[dict] = []
-    for wave_path in workdir.glob("*/*/tests/*/*.vcd"):
-        parts = wave_path.relative_to(REPO_ROOT).parts
-        if len(parts) >= 6 and parts[0] == "workdir":
-            entries.append({"wave_path": wave_path, "timestamp": datetime.fromtimestamp(wave_path.stat().st_mtime)})
-    for wave_path in workdir.glob("*/*/regressions/*/*/*.vcd"):
-        parts = wave_path.relative_to(REPO_ROOT).parts
-        if len(parts) >= 7:
-            entries.append({"wave_path": wave_path, "timestamp": datetime.fromtimestamp(wave_path.stat().st_mtime)})
+    for pattern in globs:
+        for wave_path in REPO_ROOT.glob(str(pattern)):
+            if wave_path.is_file():
+                entries.append(
+                    {"wave_path": wave_path, "timestamp": datetime.fromtimestamp(wave_path.stat().st_mtime)}
+                )
     entries.sort(key=lambda e: e["timestamp"], reverse=True)
     return entries
 
 
-def run_debug_mode(env_data: dict) -> None:
-    entries = discover_debug_entries()
+def run_debug_mode(build_cfg: dict, env_data: dict) -> None:
+    prof = build_cfg.get("debug_profile") or {}
+    tool = str(prof.get("tool", "gtkwave"))
+    tool_defs = build_cfg.get("tools") or {}
+    if tool not in tool_defs:
+        raise BuildError(f"debug_profile.tool {tool!r} missing from build.yaml tools")
+    exports = tool_defs[tool].get("exports") or {}
+    exe_key = next(iter(exports.keys()), None)
+    if not exe_key or exe_key not in env_data:
+        raise BuildError(f"debug mode: could not resolve exe context key for tool {tool!r}")
+    exe = env_data[exe_key]
+    entries = discover_debug_entries(build_cfg)
     if not entries:
-        raise BuildError("no saved waveform files found under workdir")
+        raise BuildError("no saved waveform artifacts matched debug_profile.artifact_globs")
+    nmax = int(prof.get("list_max", 20))
     print_status_line("wait", "debug")
     print_status_line("start", "debug")
-    for i, e in enumerate(entries[:20], start=1):
+    for i, e in enumerate(entries[:nmax], start=1):
         print(f"  [{i}] {e['wave_path'].relative_to(REPO_ROOT)}", flush=True)
-    sel = input("select entry number to open with gtkwave (blank to cancel): ").strip()
+    sel = input("select entry number to open (blank to cancel): ").strip()
     if not sel or not sel.isdigit():
         print_status_line("done-pass", "debug", duration="+0ms")
         return
@@ -1438,7 +1479,7 @@ def run_debug_mode(env_data: dict) -> None:
         return
     path = str(entries[idx - 1]["wave_path"])
     subprocess.Popen(
-        [env_data["gtkwave_exe"], path],
+        [str(exe), path],
         cwd=REPO_ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -1458,9 +1499,11 @@ def announce_step_tree(
     announced.add(step_name)
 
 
-def announce_regression_tests(base: dict, tests: list[str], steps_cfg: dict) -> None:
+def announce_regression_tests(
+    base: dict, tests: list[str], steps_cfg: dict, build_cfg: dict
+) -> None:
     for t in tests:
-        ctx = get_test_data(dict(base), t, "regress")
+        ctx = get_test_data(dict(base), t, "regress", build_cfg)
         print_status_line("wait", get_step_display_name("simulate", steps_cfg, ctx))
 
 
@@ -1487,26 +1530,28 @@ def main() -> int:
         steps_cfg = build_cfg["steps"]
         requested = resolve_requested_targets(args)
         if args.debug:
-            run_debug_mode(get_env_data({"gtkwave"}))
+            req = collect_required_tool_names(requested, targets_cfg, {})
+            env_data = apply_environment_from_build_cfg(req, build_cfg)
+            run_debug_mode(build_cfg, env_data)
             return 0
         for t in requested:
             if t not in targets_cfg:
                 raise BuildError(f"unknown target '{t}'")
 
-        context = get_ip_data(args.ip)
+        context = get_ip_data(args.ip, build_cfg)
         for tname in requested:
             tcfg = targets_cfg[tname]
             sel = tcfg.get("selector")
             if not sel:
                 continue
-            argn = resolve_selector_argument_name(sel["param"])
+            argn = resolve_selector_argument_name(sel["param"], build_cfg)
             val = getattr(args, argn)
             if val != INTERACTIVE_SELECT:
                 continue
             names = (
-                get_available_tests(context)
+                get_available_tests(context, build_cfg)
                 if sel["kind"] == "test"
-                else get_available_regressions(context)
+                else get_available_regressions(context, build_cfg)
             )
             picked = prompt_for_named_entry(sel["kind"], names)
             if picked is None:
@@ -1515,8 +1560,9 @@ def main() -> int:
             setattr(args, argn, picked)
 
         required = collect_required_tool_names(requested, targets_cfg, context)
-        env_data = get_env_data(required)
+        env_data = apply_environment_from_build_cfg(required, build_cfg)
         context.update(env_data)
+        merge_build_parameters_into_context(context, build_cfg)
         tag = resolve_tag(args.tag, context)
         args.tag = tag
         if args.regress and isinstance(args.regress, str):
@@ -1530,9 +1576,9 @@ def main() -> int:
         print_status_line("wait", workflow)
         print_status_line("start", workflow)
 
-        tdeps, tclosures = collect_target_dependencies(requested, targets_cfg, steps_cfg)
+        tdeps, tclosures = collect_target_dependencies(requested, targets_cfg, steps_cfg, build_cfg)
         tctxs = {
-            t: resolve_target_context(context, t, targets_cfg[t], args) for t in requested
+            t: resolve_target_context(context, t, targets_cfg[t], args, build_cfg) for t in requested
         }
         announced: set[str] = set()
         announce_step_tree("prepare", steps_cfg, context, announced)
@@ -1540,9 +1586,11 @@ def main() -> int:
             for s in targets_cfg[t].get("root_steps", []):
                 announce_step_tree(s, steps_cfg, tctxs[t], announced)
             if t == "regress":
-                announce_regression_tests(tctxs[t], tctxs[t].get("selected_tests", []), steps_cfg)
+                announce_regression_tests(
+                    tctxs[t], tctxs[t].get("selected_tests", []), steps_cfg, build_cfg
+                )
 
-        run_step("prepare", steps_cfg, context, set())
+        run_step("prepare", steps_cfg, context, set(), build_cfg)
         futures: dict[str, concurrent.futures.Future[None]] = {}
 
         def execute_target(tname: str) -> None:
@@ -1552,7 +1600,7 @@ def main() -> int:
             for dep in tdeps[tname]:
                 done.update(tclosures[dep])
             for s in targets_cfg[tname].get("root_steps", []):
-                run_step(s, steps_cfg, tctxs[tname], done)
+                run_step(s, steps_cfg, tctxs[tname], done, build_cfg)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(requested)) as ex:
             for t in requested:
