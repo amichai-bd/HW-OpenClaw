@@ -146,8 +146,46 @@ class BuildError(RuntimeError):
     """Raised when build setup or execution fails."""
 
 
+def try_enable_windows_ansi_stdout() -> None:
+    """Turn on VT100 interpretation in classic Windows consoles (cmd / some Git Bash hosts)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        invalid = ctypes.c_void_p(-1).value
+        if not handle or handle == invalid:
+            return
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return
+        kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+    except Exception:
+        return
+
+
+def color_enabled_for_stdout() -> bool:
+    """Respect NO_COLOR / FORCE_COLOR; skip colors for non-TTY or dumb terminals."""
+    if os.environ.get("NO_COLOR", "").strip():
+        return False
+    if os.environ.get("FORCE_COLOR", "").strip().lower() in ("1", "true", "yes", "always", "force"):
+        return True
+    if os.environ.get("CLICOLOR_FORCE", "").strip():
+        return True
+    if not sys.stdout.isatty():
+        return False
+    if os.environ.get("TERM", "").lower() == "dumb":
+        return False
+    return True
+
+
+try_enable_windows_ansi_stdout()
 PRINT_LOCK = threading.Lock()
-COLOR_ENABLED = sys.stdout.isatty() and os.environ.get("TERM", "").lower() != "dumb"
+COLOR_ENABLED = color_enabled_for_stdout()
 COLOR_RESET = "\033[0m"
 COLOR_BOLD = "\033[1m"
 COLOR_WAIT = "\033[33m"
