@@ -108,6 +108,7 @@ For normal repository usage, bootstrap first:
 
 ```sh
 ./setup
+./setup --pd                  # optional pinned ORFS/Nangate45 tier
 ```
 
 Then invoke the builder through the standard repo launcher:
@@ -118,7 +119,7 @@ Then invoke the builder through the standard repo launcher:
 ./build -ip counter -fv
 ./build -ip fifo -synth
 ./build -ip fifo -pd
-./build -ip fifo -pd -pd-exec
+./build -ip counter -pd -pd-exec
 ./build -ip fifo -test sanity
 ./build -ip fifo -regress level_0
 ./build -ip fifo -lint -fv -synth -regress level_2
@@ -140,11 +141,13 @@ For a fresh clone or a clean CI runner, use the repository bootstrap entrypoint 
 ```sh
 ./setup
 ./setup --check
+./setup --pd
+./setup --pd --check
 ```
 
 `./setup` installs the required open-source toolchain from the YAML-defined bootstrap contract in `cfg/env.yaml`, including Verilator, Yosys, SBY, GTKWave, and the formal solver dependencies. `./setup --check` verifies the installed toolchain without reinstalling it.
 
-The physical-design backend is **declared** (OpenROAD-class P&R) but **not** installed by `./setup`; that split is intentional so the default bootstrap and CI gate stay on the RTL-through-synth toolchain. `./build -ip fifo -pd` runs the synthesis prerequisite and writes a foundation PD review package: floorplan/placed/routed DEF, final DEF, deterministic foundation GDSII, SPEF limitation file, timing/utilization/DRC/LVS reports, SVG/PNG layout images, and `pd_summary.yaml`. **`./build -ip fifo -pd -pd-exec`** adds an **optional local** gate that an `openroad` binary exists at the preferred path in `cfg/env.yaml`; it does not run full ORFS from the builder yet. Wiring real place-and-route and PDK-backed signoff remains tracked as physical-design work; see the [software stack](wiki/flows-methods-phylosophy/software-stack.md) page for rationale.
+The physical-design backend remains an optional second tier so the default bootstrap and CI gate stay lightweight. `./setup --pd` installs a digest-pinned ORFS image into user-local storage and verifies its OpenROAD, Yosys, and KLayout binaries without requiring Docker-daemon access. `./build -ip counter -pd -pd-exec` then runs a real Nangate45 flow through synthesis, floorplan/PDN, placement, CTS, detailed routing, OpenRCX extraction, timing, GDS generation, and KLayout DRC. Plain `-pd` continues to emit the fast internal foundation package. See the [software stack](wiki/flows-methods-phylosophy/software-stack.md) and [Kimi K3 stack research](wiki/flows-methods-phylosophy/kimi-k3-stack-research.md).
 
 Repository structure can be validated explicitly per IP:
 
@@ -204,7 +207,7 @@ The QA flow checks that the IP structure, config references, source filelists, m
 - Synth outputs include a generated Yosys script, a synthesized netlist, JSON netlist, machine-readable `stat` report, area report, a synthesis `check` report, structural schematic DOT/SVG/PNG artifacts, and a derived `synth_summary.yaml` artifact for automation.
 - The schematic SVG/PNG artifacts are synthesized structural connectivity views. They are not physical floorplans, placement views, routed layouts, or timing heatmaps.
 - Physical design uses the YAML-defined build flow in `tools/build/build.yaml` and the profile contract in `cfg/pd.yaml`.
-- The current physical-design flow is a foundation package toward **real P&R**: it declares **OpenROAD Flow Scripts** as the foundation backend (the **Tier 2** toolchain in [software-stack](wiki/flows-methods-phylosophy/software-stack.md)), consumes synthesis outputs, emits deterministic floorplan/IO/timing/placement/CTS/route/final-DEF review artifacts, writes foundation GDSII/SPEF/image collateral, and marks timing/DRC/LVS/extraction as informational until the backend and technology collateral are wired.
+- Plain `-pd` emits deterministic foundation collateral. Optional `-pd -pd-exec` runs the digest-pinned ORFS backend for explicitly configured IPs and replaces the authoritative DEF/GDS/SPEF/timing/DRC artifacts with real Nangate45 flow outputs. Nangate45 remains a non-manufacturable reference platform, and LVS remains unavailable because the pinned public platform does not ship its referenced LVS deck.
 
 ## Development workflow
 

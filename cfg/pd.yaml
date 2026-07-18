@@ -1,16 +1,28 @@
 profiles:
   openroad_foundation:
-    description: "OpenROAD-oriented physical-design foundation package used before full PDK-backed signoff integration."
+    description: "OpenROAD foundation package with optional pinned ORFS Nangate45 RTL-to-GDS execution."
     backend:
       kind: openroad-flow-scripts
       source: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
-      entrypoint: internal-def-scaffold
-      note: "The builder emits deterministic floorplan, IO, timing, placement, CTS, route, foundation GDSII/SPEF, informational signoff-report, and layout-image review artifacts until the external backend and technology collateral are installed."
+      entrypoint: pinned-orfs-image
+      platform: nangate45
+      image: openroad/orfs@sha256:86dfae2d567b8570d71fa49f24ea420a2e79d9645673ba41fd70c5a63510e4aa
+      rootfs: "{home_dir}/.local/share/hw-openclaw/orfs/sha256-86dfae2d/rootfs"
+      runner: /usr/bin/bwrap
+      note: "Without -pd-exec the builder emits deterministic foundation collateral. With -pd-exec it runs the pinned ORFS image and replaces physical artifacts with Nangate45 backend outputs."
     bootstrap:
-      install_mode: external-or-container
-      setup_status: manual-for-now
-      note: "Tier 2 of the software stack (wiki/flows-methods-phylosophy/software-stack.md): bootstrap does not install OpenROAD; foundation PD review artifacts are generated internally until the external backend is wired; real signoff requires that integration plus technology collateral."
-    required_tools: []
+      install_mode: user-local-image-rootfs-bubblewrap
+      setup_status: optional-via-setup-pd
+      note: "Run ./setup --pd once. No Docker daemon, root access, or system permission change is required after bubblewrap is present."
+    required_tools:
+      - name: bubblewrap
+        exe: /usr/bin/bwrap
+      - name: openroad
+        exe: "{home_dir}/.local/share/hw-openclaw/orfs/sha256-86dfae2d/rootfs/OpenROAD-flow-scripts/tools/install/OpenROAD/bin/openroad"
+      - name: orfs-yosys
+        exe: "{home_dir}/.local/share/hw-openclaw/orfs/sha256-86dfae2d/rootfs/OpenROAD-flow-scripts/tools/install/yosys/bin/yosys"
+      - name: klayout
+        exe: "{home_dir}/.local/share/hw-openclaw/orfs/sha256-86dfae2d/rootfs/usr/bin/klayout"
     required_inputs:
       - synth JSON netlist
       - synth verilog netlist

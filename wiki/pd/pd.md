@@ -17,11 +17,11 @@ The current repository stage is a foundation PD package:
 - `src/pd/common/` is the shared physical-design collateral home
 - `src/pd/<ip>/` is the IP-local physical-design collateral home
 - `./build -ip <ip> -pd` consumes synthesis output and emits review physical-design artifacts
-- `./build -ip <ip> -pd -pd-exec` (optional, local) additionally checks that an `openroad` binary exists at the preferred path in `cfg/env.yaml`; not used in default CI
+- `./setup --pd` provisions the optional pinned ORFS toolchain in user-local storage
+- `./build -ip counter -pd -pd-exec` (optional, local) runs real Nangate45 RTL-to-GDS; not used in default CI
 
-The selected foundation backend is OpenROAD Flow Scripts. The repository does not
-vendor or install it yet. Until external backend integration lands, the builder
-emits deterministic foundation review artifacts:
+The selected backend is a digest-pinned OpenROAD Flow Scripts image. Without
+`-pd-exec`, the builder emits deterministic foundation review artifacts:
 
 - `floorplan/<ip>_floorplan.def`
 - `floorplan/<ip>_io_placement.tcl`
@@ -41,7 +41,8 @@ emits deterministic foundation review artifacts:
 - `pd.log`
 - `<ip>_pd_summary.yaml`
 
-The final DEF, GDSII, SPEF, DRC, LVS, and image files are foundation artifacts.
-They are useful for structure, automation, and PR review, but they are not
-PDK-backed signoff results until the external OpenROAD/technology integration is
-wired.
+With `-pd-exec`, the counter's DEF, GDSII, SPEF, CTS, timing, utilization, and
+DRC files come from the ORFS Nangate45 run. The SVG/PNG remain lightweight
+builder review images. Nangate45 is a reference platform rather than a
+manufacturable foundry PDK, and LVS is not run because its referenced public
+deck is absent from the pinned image.
