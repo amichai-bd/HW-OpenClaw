@@ -38,9 +38,11 @@ Defining the stack in config (`cfg/env.yaml`, `cfg/pd.yaml`) keeps `./setup` and
 
 The installer downloads a checksum-pinned `crane` client, exports the digest-pinned
 `openroad/orfs` Linux/amd64 image into `~/.local/share/hw-openclaw/orfs/`, and
-runs it with Bubblewrap. This needs no Docker daemon and changes no system
-permissions. The image bundles the matched ORFS versions of Yosys, OpenROAD
-(including OpenSTA/OpenRCX), and KLayout.
+runs it with Bubblewrap. The pinned root filesystem is mounted read-only; only
+the repository work directory and an ephemeral `/tmp` are writable during a
+run. This needs no Docker daemon and changes no system permissions. The image
+bundles the matched ORFS versions of Yosys, OpenROAD (including
+OpenSTA/OpenRCX), and KLayout.
 
 **Result today:**
 
