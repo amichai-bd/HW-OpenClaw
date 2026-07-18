@@ -35,18 +35,18 @@ The standard entry point is:
 ./build -ip fifo -pd
 ```
 
-Optional **local** opt-in after you install an OpenROAD-class backend:
+Optional **local** real RTL-to-GDS run after `./setup --pd`:
 
 ```sh
-./build -ip fifo -pd -pd-exec
+./build -ip counter -pd -pd-exec
 ```
 
-`-pd-exec` requires `-pd`. It keeps the same foundation PD package, then checks
-that an `openroad` binary resolves at the preferred path in `cfg/env.yaml`. It
-does **not** run a full ORFS place-and-route from the builder until that
-integration is implemented; the gate exists so local workflows can fail fast when
-the backend is missing. **CI must not** add `-pd` or `-pd-exec` to the default
-merge gate.
+`-pd-exec` requires `-pd`. The builder first emits the same foundation package,
+then runs the pinned ORFS image and replaces authoritative floorplan, IO,
+placement, CTS, route, final DEF/GDS/SPEF, timing, utilization, and DRC outputs
+with backend-produced artifacts. The IP must declare fixed ORFS floorplan and
+backend controls under `pd_constraints.orfs`. **CI must not** add `-pd` or
+`-pd-exec` to the default merge gate.
 
 The `pd` target depends on synthesis because physical design consumes the mapped
 netlist and synthesis summary. At the foundation package stage, the step emits
@@ -84,21 +84,21 @@ The split, CI scope, and rationale are documented in
 
 ## Backend Strategy
 
-The current selected foundation backend is OpenROAD Flow Scripts.
+The selected executable backend is a digest-pinned OpenROAD Flow Scripts image
+using its Nangate45 reference platform.
 
-This choice keeps the project on an open-source physical-design path while
-allowing incremental integration:
+This choice keeps the project on an open-source physical-design path:
 
-1. declare structure and tool expectations
-2. add floorplan and IO boundary generation
-3. add placement, CTS, routing, and DEF outputs
-4. add foundation GDS, SPEF, signoff reports, and review images
-5. replace foundation artifacts with real backend-produced PDK-backed artifacts
+1. Verilator validates RTL behavior separately
+2. ORFS/Yosys maps RTL to Nangate45 cells
+3. OpenROAD performs floorplan, PDN, placement, CTS, and routing
+4. OpenRCX emits SPEF and OpenSTA reports timing
+5. KLayout merges final GDS and runs the public Nangate45 DRC deck
 
 The repository should not pretend a real PDK-backed signoff flow exists before
 technology collateral and backend installation are handled explicitly.
 
-The current internal scaffold is a review artifact generator, not a substitute
-for external OpenROAD execution or signoff. Its GDSII, SPEF, DRC, LVS, and timing
-outputs are intentionally marked foundation/informational. External backend tools
-must be declared in `cfg/pd.yaml` when they become required by a later stage.
+The internal scaffold remains a review artifact generator when `-pd-exec` is
+absent. Nangate45 backend output is materially stronger but still is not
+foundry-qualified signoff: it is a reference platform, and its LVS deck is not
+present in the pinned public image. The summary distinguishes these states.

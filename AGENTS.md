@@ -76,8 +76,8 @@ For detailed style and methodology, consult:
 
 ## Tool And Config Rules
 
-- The repository **software stack** is intentionally **two-tier**: `./setup` provisions **RTL, DV, FV, lint, and Yosys synthesis** for normal dev and CI; **physical place-and-route** is a **separate backend tier** (OpenROAD-class, declared in `cfg/pd.yaml`) so P&R is not conflated with logical synthesis. Rationale and boundaries: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md).
-- **`openroad`** (or the wired equivalent) is listed under `cfg/env.yaml` → `manual_tools` until the PD backend is integrated into bootstrap or CI; `./build -ip <ip> -pd` remains the PD entry point and should fail clearly if the profile requires a missing backend executable.
+- The repository **software stack** is intentionally **two-tier**: plain `./setup` provisions **RTL, DV, FV, lint, and Yosys synthesis** for normal dev and CI; `./setup --pd` provisions the optional pinned **OpenROAD Flow Scripts** physical-design tier in user-local storage. Rationale and boundaries: [software-stack.md](./wiki/flows-methods-phylosophy/software-stack.md).
+- `./build -ip <ip> -pd` emits the lightweight foundation package. `./build -ip <ip> -pd -pd-exec` runs the real pinned ORFS/Nangate45 backend for IPs with explicit `pd_constraints.orfs`; it must fail clearly if setup or IP backend constraints are missing.
 - YAML files are the source of truth for repository tools.
 - Do not hardcode fallback paths, inferred defaults, search patterns, or directory discovery logic inside scripts.
 - If a tool needs build flow definitions, read them from the tool YAML file.
@@ -140,7 +140,7 @@ Useful `.codex/rules/` files by topic:
 - The standard shell entrypoint is `. cfg/env.sh`.
 - The standard interactive builder entrypoint is the repo-root `./build`, which should source `cfg/env.sh` and delegate to `bin/build`.
 - `./build` is the required user-facing entry point for simulation, formal, synthesis, physical design, and related flows.
-- Physical design: `-pd` runs the scaffold; `-pd-exec` (requires `-pd`) is an optional **local** OpenROAD binary gate. Do **not** add `-pd` or `-pd-exec` to the default GitHub Actions merge gate unless the project explicitly opts into Tier-2 PD in CI.
+- Physical design: `-pd` runs the scaffold; `-pd-exec` (requires `-pd`) is the optional **local** pinned ORFS/Nangate45 RTL-to-GDS run. Do **not** add `-pd` or `-pd-exec` to the default GitHub Actions merge gate unless the project explicitly opts into Tier-2 PD in CI.
 - `./setup` is the required repository bootstrap entry point for fresh clones and CI provisioning.
 - Do not treat bare tool invocations such as raw simulator, formal, or synthesis commands as the normal interface for repository work.
 - The builder supports combining multiple discipline flags in one command.

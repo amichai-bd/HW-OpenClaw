@@ -23,18 +23,34 @@ Defining the stack in config (`cfg/env.yaml`, `cfg/pd.yaml`) keeps `./setup` and
 
 ## Tier 2 — Physical-design backend (place-and-route)
 
-**Role:** **Floorplan, placement, CTS, routing**, and the path toward **DEF / GDS / SPEF** and signoff-class reports. This is the **P&R engine** and its ecosystem, not another RTL tool.
+**Role:** **Floorplan, placement, CTS, routing, extraction, timing, GDS, and DRC**. This is the **P&R engine** and its ecosystem, not another RTL tool.
 
 **Declared foundation:** **OpenROAD Flow Scripts** (OpenROAD-class backend), as named in `cfg/pd.yaml` and summarized in [physical-design-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/physical-design-methodology).
 
-**Source of truth:** `cfg/pd.yaml` (profiles, backend kind, planned inputs/outputs) and `cfg/env.yaml` → `manual_tools.openroad` (executable expectation for the wired flow).
+**Source of truth:** `cfg/pd.yaml` (profile/backend contract), `cfg/env.yaml` → `bootstrap.user_installs.orfs` (pinned image and installer), and IP-local `pd_constraints.orfs`.
+
+**Provisioning:**
+
+```sh
+./setup --pd
+./setup --pd --check
+```
+
+The installer downloads a checksum-pinned `crane` client, exports the digest-pinned
+`openroad/orfs` Linux/amd64 image into `~/.local/share/hw-openclaw/orfs/`, and
+runs it with Bubblewrap. The pinned root filesystem is mounted read-only; only
+the repository work directory and an ephemeral `/tmp` are writable during a
+run. This needs no Docker daemon and changes no system permissions. The image
+bundles the matched ORFS versions of Yosys, OpenROAD (including
+OpenSTA/OpenRCX), and KLayout.
 
 **Result today:**
 
 - `./build -ip <ip> -pd` is the **PD entry point**; it depends on synthesis outputs.
-- `./build -ip <ip> -pd -pd-exec` is an **optional local** check that an `openroad` binary exists at the preferred path; it is **not** part of the default CI gate.
-- The builder emits **deterministic foundation review collateral** and a **PD summary** aligned with the declared backend contract.
-- Until the external backend is installed and integrated, the flow marks GDS/SPEF/timing/DRC/LVS/extraction outputs as foundation or informational rather than PDK-backed signoff.
+- `./build -ip <ip> -pd -pd-exec` is the **optional local real-backend path** for an IP with explicit ORFS floorplan constraints.
+- The counter profile runs Nangate45 synthesis, floorplan/PDN, placement, CTS, routing, OpenRCX extraction, STA, GDS generation, and KLayout DRC.
+- Plain `-pd` remains the fast deterministic foundation path.
+- Nangate45/FreePDK45 is a reference platform, not a foundry-qualified manufacturing PDK. The pinned public image also omits its referenced Nangate45 LVS deck, so LVS is reported honestly as not run.
 
 **CI today:** The default PR gate exercises **Tier 1** only. Adding Tier 2 to CI is a separate decision (machine size, caching, container), not implied by the current workflow.
 
@@ -45,10 +61,19 @@ RTL / DV / FV
   →  ./setup (Tier 1)
   →  ./build … -compile -fv -synth …
   →  mapped netlist + PD constraints
-  →  ./build … -pd
-  →  PD backend (Tier 2: OpenROAD-class P&R)
+  →  ./setup --pd
+  →  ./build … -pd -pd-exec
+  →  PD backend (Tier 2: pinned ORFS/Nangate45)
   →  DEF / GDS / SPEF / reports (as wired)
 ```
+
+## Why this is the Kimi K3 working hypothesis
+
+Moonshot only disclosed “open-source EDA tools” and Nangate45. ORFS is the
+strongest reproducible match because its official stack combines Yosys,
+OpenROAD/OpenSTA/OpenRCX, and KLayout and directly ships a Nangate45 platform.
+See [Kimi K3 stack research](./kimi-k3-stack-research.md) for evidence,
+confidence levels, and unknowns.
 
 ## Related pages
 

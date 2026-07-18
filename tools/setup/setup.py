@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
+import urllib.request
 from pathlib import Path
 
 
@@ -85,6 +88,16 @@ def format_template(text: str, context: dict) -> str:
     return text.format(**context)
 
 
+def resolve_templates(value, context: dict):
+    if isinstance(value, dict):
+        return {key: resolve_templates(item, context) for key, item in value.items()}
+    if isinstance(value, list):
+        return [resolve_templates(item, context) for item in value]
+    if isinstance(value, str):
+        return format_template(value, context)
+    return value
+
+
 def get_bootstrap_data(environment: dict) -> dict:
     bootstrap = require_mapping(environment, "bootstrap", "environment")
     apt_packages = require_list(bootstrap, "apt_packages", "environment.bootstrap")
@@ -105,6 +118,26 @@ def get_bootstrap_data(environment: dict) -> dict:
         "sby_install_prefix": install_prefix,
         "manual_tools": bootstrap.get("manual_tools", {}),
     }
+
+
+def get_orfs_data(environment: dict) -> dict:
+    bootstrap = require_mapping(environment, "bootstrap", "environment")
+    user_installs = require_mapping(bootstrap, "user_installs", "environment.bootstrap")
+    orfs_cfg = require_mapping(user_installs, "orfs", "environment.bootstrap.user_installs")
+    crane_cfg = require_mapping(orfs_cfg, "crane", "environment.bootstrap.user_installs.orfs")
+    context = {
+        "repo_root": str(REPO_ROOT),
+        "host_home": os.environ.get("HOME", str(Path.home())),
+    }
+    resolved = resolve_templates(orfs_cfg, context)
+    resolved["crane"] = resolve_templates(crane_cfg, context)
+    for key in ["image", "image_digest", "platform", "install_root", "runner"]:
+        if not isinstance(resolved.get(key), str) or not resolved[key].strip():
+            raise SetupError(f"missing string '{key}' in environment.bootstrap.user_installs.orfs")
+    for key in ["version", "exe", "archive_url", "archive_sha256"]:
+        if not isinstance(resolved["crane"].get(key), str) or not resolved["crane"][key].strip():
+            raise SetupError(f"missing string '{key}' in environment.bootstrap.user_installs.orfs.crane")
+    return resolved
 
 
 def get_tools(environment: dict) -> dict:
@@ -168,6 +201,144 @@ def install_sby(bootstrap: dict) -> None:
         run_cmd(["make", "install", f"PREFIX={install_prefix}"], cwd=clone_dir)
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def install_crane(orfs: dict) -> Path:
+    crane = orfs["crane"]
+    target = Path(crane["exe"]).expanduser()
+    expected_version = crane["version"].removeprefix("v")
+    if target.is_file():
+        version = capture_cmd([str(target), "version"])
+        if version == expected_version:
+            return target
+
+    with tempfile.TemporaryDirectory(prefix="hw-openclaw-crane-") as tmp_dir:
+        archive_path = Path(tmp_dir) / "crane.tar.gz"
+        urllib.request.urlretrieve(crane["archive_url"], archive_path)
+        actual_sha256 = sha256_file(archive_path)
+        if actual_sha256 != crane["archive_sha256"]:
+            raise SetupError(
+                f"crane archive checksum mismatch: expected {crane['archive_sha256']}, got {actual_sha256}"
+            )
+        with tarfile.open(archive_path, "r:gz") as archive:
+            member = archive.getmember("crane")
+            source = archive.extractfile(member)
+            if source is None:
+                raise SetupError("crane archive does not contain an extractable 'crane' binary")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            staged = Path(tmp_dir) / "crane"
+            staged.write_bytes(source.read())
+            staged.chmod(0o755)
+            os.replace(staged, target)
+    version = capture_cmd([str(target), "version"])
+    if version != expected_version:
+        raise SetupError(f"unexpected crane version after install: expected {expected_version}, got {version}")
+    return target
+
+
+def install_orfs(environment: dict) -> None:
+    orfs = get_orfs_data(environment)
+    runner = Path(orfs["runner"])
+    if not runner.is_file():
+        raise SetupError(
+            f"missing bubblewrap runner {runner}; install the YAML-declared 'bubblewrap' apt package first"
+        )
+    install_root = Path(orfs["install_root"]).expanduser()
+    rootfs = install_root / "rootfs"
+    marker = install_root / "image-digest.txt"
+    openroad = rootfs / "OpenROAD-flow-scripts/tools/install/OpenROAD/bin/openroad"
+    if openroad.is_file():
+        marker.write_text(orfs["image_digest"] + "\n", encoding="utf-8")
+        return
+
+    crane = install_crane(orfs)
+    partial_rootfs = install_root / "rootfs.partial"
+    if partial_rootfs.exists():
+        shutil.rmtree(partial_rootfs)
+    partial_rootfs.mkdir(parents=True, exist_ok=True)
+    process = subprocess.Popen(
+        [str(crane), "export", "--platform", orfs["platform"], orfs["image"], "-"],
+        stdout=subprocess.PIPE,
+    )
+    if process.stdout is None:
+        raise SetupError("failed to capture crane export stream")
+    try:
+        with tarfile.open(fileobj=process.stdout, mode="r|*") as archive:
+            archive.extractall(partial_rootfs, filter="fully_trusted")
+    finally:
+        process.stdout.close()
+    return_code = process.wait()
+    if return_code != 0:
+        raise SetupError(f"crane export failed with exit code {return_code}")
+    if rootfs.exists():
+        shutil.rmtree(rootfs)
+    partial_rootfs.rename(rootfs)
+    marker.write_text(orfs["image_digest"] + "\n", encoding="utf-8")
+
+
+def orfs_command(orfs: dict, script: str) -> list[str]:
+    rootfs = Path(orfs["install_root"]).expanduser() / "rootfs"
+    return [
+        orfs["runner"],
+        "--ro-bind",
+        str(rootfs),
+        "/",
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        "/tmp",
+        "--chdir",
+        "/OpenROAD-flow-scripts",
+        "--setenv",
+        "HOME",
+        "/tmp",
+        "--setenv",
+        "USER",
+        os.environ.get("USER", "user"),
+        "/usr/bin/bash",
+        "-lc",
+        script,
+    ]
+
+
+def verify_orfs(environment: dict) -> None:
+    orfs = get_orfs_data(environment)
+    install_root = Path(orfs["install_root"]).expanduser()
+    rootfs = install_root / "rootfs"
+    marker = install_root / "image-digest.txt"
+    actual_digest = marker.read_text(encoding="utf-8").strip() if marker.is_file() else ""
+    if actual_digest != orfs["image_digest"]:
+        raise SetupError(
+            "ORFS image digest marker is missing or stale; run ./setup --pd to install the pinned image"
+        )
+    required = [
+        rootfs / "OpenROAD-flow-scripts/tools/install/OpenROAD/bin/openroad",
+        rootfs / "OpenROAD-flow-scripts/tools/install/yosys/bin/yosys",
+        rootfs / "usr/bin/klayout",
+    ]
+    for path in required:
+        if not path.is_file():
+            raise SetupError(f"missing ORFS tool: {path}; run ./setup --pd")
+    output = capture_cmd(
+        orfs_command(
+            orfs,
+            "source ./env.sh && openroad -version && yosys -V && klayout -v",
+        )
+    )
+    print("physical-design tool verification:", flush=True)
+    print(f"- image: {orfs['image']}", flush=True)
+    for line in output.splitlines():
+        print(f"- {line}", flush=True)
+
+
 def verify_tools(environment: dict, strict: bool = True) -> None:
     tools = get_tools(environment)
     print("tool verification:", flush=True)
@@ -208,11 +379,25 @@ def print_plan(environment: dict) -> None:
             print(f"  - {tool_name}: {reason}", flush=True)
 
 
+def print_pd_plan(environment: dict) -> None:
+    orfs = get_orfs_data(environment)
+    print("physical-design setup plan:", flush=True)
+    print(f"- pinned image: {orfs['image']}", flush=True)
+    print(f"- platform: {orfs['platform']}", flush=True)
+    print(f"- user-local root: {orfs['install_root']}", flush=True)
+    print(f"- sandbox runner: {orfs['runner']}", flush=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Repository setup/bootstrap")
     parser.add_argument("--check", action="store_true", help="verify installed tools only")
     parser.add_argument("--print-plan", action="store_true", help="print the setup plan and exit")
     parser.add_argument("--ci", action="store_true", help="non-interactive CI mode")
+    parser.add_argument(
+        "--pd",
+        action="store_true",
+        help="install or check the optional pinned ORFS physical-design tier only",
+    )
     return parser.parse_args()
 
 
@@ -222,11 +407,25 @@ def main() -> int:
         environment = load_env_config()
 
         if args.print_plan:
-            print_plan(environment)
+            if args.pd:
+                print_pd_plan(environment)
+            else:
+                print_plan(environment)
             return 0
 
         if args.check:
-            verify_tools(environment)
+            if args.pd:
+                verify_orfs(environment)
+            else:
+                verify_tools(environment)
+            return 0
+
+        if args.pd:
+            install_orfs(environment)
+            verify_orfs(environment)
+            print("", flush=True)
+            print("next step:", flush=True)
+            print("- run `./build -ip counter -pd -pd-exec`", flush=True)
             return 0
 
         bootstrap = get_bootstrap_data(environment)

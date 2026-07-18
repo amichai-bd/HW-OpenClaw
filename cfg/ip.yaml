@@ -134,6 +134,22 @@ ip:
       timing:
         clock: clk
         period_ns: 10.0
+      orfs:
+        die_area_um:
+          - 0.0
+          - 0.0
+          - 100.0
+          - 100.0
+        core_area_um:
+          - 10.07
+          - 11.2
+          - 90.0
+          - 90.0
+        place_density_lb_addon: 0.20
+        lec_check: false
+        run_drc: true
+        run_lvs: false
+        lvs_note: "The pinned ORFS Nangate45 reference platform declares an LVS deck path but does not ship that deck."
     dv_filelist: src/dv/counter/filelist/filelist_dv_counter.f
     all_filelist: src/dv/counter/filelist/filelist_all_counter.f
     rtl_top: src/rtl/counter/code/counter.sv

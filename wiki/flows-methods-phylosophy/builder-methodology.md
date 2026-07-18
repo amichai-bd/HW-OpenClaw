@@ -52,7 +52,7 @@ The repository should be able to validate its own structural contract.
 At the foundation stage, PD depends on synthesis, writes a structured
 `pd_summary.yaml`, and emits reviewable DEF, GDSII, SPEF, report, and image
 artifacts from the internal scaffold. When `-pd-exec` is explicitly requested,
-the builder also fails clearly if the declared OpenROAD binary is missing. This
-keeps the flow honest: the repository has a PD contract and final-artifact shape,
-but it does not pretend those artifacts are PDK-backed signoff before the backend
-is installed and wired.
+the builder requires the `./setup --pd` installation and IP-local ORFS
+constraints, runs the pinned Nangate45 backend, and replaces the authoritative
+DEF/GDS/SPEF/timing/DRC artifacts with real tool outputs. The summary keeps the
+reference-platform and missing-LVS limitations explicit.

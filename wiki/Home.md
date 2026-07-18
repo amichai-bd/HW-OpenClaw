@@ -22,6 +22,7 @@ If you are new to the repository, read these first:
 - [repo-structure](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/repo-structure)
 - [builder-methodology](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/builder-methodology)
 - [software-stack](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/software-stack)
+- [Kimi K3 stack research](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/kimi-k3-stack-research)
 - [codex-agent-skills](/amichai-bd/HW-OpenClaw/wiki/flows-methods-phylosophy/codex-agent-skills) — repo-local `.codex/skills/` (wiki publish, AgentMail)
 
 For a fresh clone:

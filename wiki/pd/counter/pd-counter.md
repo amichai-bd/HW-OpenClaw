@@ -1,10 +1,16 @@
 # counter physical design
 
-The counter physical-design area exists so repository structure and QA remain
-consistent across IPs.
+The counter is the repository's small, reproducible ORFS proof design.
 
-The counter uses the same `openroad_foundation` profile as FIFO. It emits the
-same floorplan, IO, timing, placed DEF, CTS, route-stage DEF, final DEF,
-foundation GDSII/SPEF, timing/utilization/DRC/LVS, layout image, log, and summary
-artifact set so both current IPs exercise the physical-design builder contract
-before external PDK-backed signoff integration.
+Plain `./build -ip counter -pd` emits the foundation artifact package.
+After `./setup --pd`, `./build -ip counter -pd -pd-exec` runs the pinned
+Nangate45 backend through Yosys synthesis, floorplan and PDN, placement, CTS,
+detailed routing, OpenRCX extraction, timing analysis, KLayout GDS generation,
+and KLayout DRC. Its fixed 100 um square die is declared explicitly under
+`cfg/ip.yaml` → `counter.pd_constraints.orfs`; the size accommodates the
+Nangate45 reference PDN strap geometry even though the counter itself is tiny.
+
+The authoritative backend outputs replace the foundation DEF, GDS, SPEF,
+timing, utilization, CTS, and DRC files under `workdir/<tag>/counter/pd/`.
+LVS is recorded as not run because the pinned ORFS image does not contain the
+LVS deck referenced by its public Nangate45 platform.
